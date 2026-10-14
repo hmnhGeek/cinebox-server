@@ -5,7 +5,6 @@ import com.webvideoplayer.player.entities.Collection;
 import com.webvideoplayer.player.repositories.CollectionRepository;
 import com.webvideoplayer.player.utils.VideoDurationUtils;
 import com.webvideoplayer.player.utils.VideoPreviewUtils;
-import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.FileSystemResource;
@@ -17,7 +16,6 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.io.IOException;
 import java.nio.file.*;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -47,7 +45,7 @@ public class CollectionService {
                         .toAbsolutePath()
                         .normalize();
 
-        generatePreviewsAsync(collectionPath);
+        generatePreviewsAsync(collectionPath, collectionId);
     }
 
     public Collection addCollection(String title, String folder) {
@@ -89,7 +87,7 @@ public class CollectionService {
          * The POST API does not remain blocked while FFmpeg
          * processes potentially large video files.
          */
-        generatePreviewsAsync(collectionPath);
+        generatePreviewsAsync(collectionPath, saved.getId());
 
         return saved;
     }
@@ -131,8 +129,8 @@ public class CollectionService {
 
     @Async
     public void generatePreviewsAsync(
-            Path collectionPath
-    ) {
+            Path collectionPath,
+            String collectionId) {
         log.info(
                 "Starting preview generation for collection: {}",
                 collectionPath
@@ -147,7 +145,7 @@ public class CollectionService {
                     continue;
                 }
 
-                processVideoFolder(videoFolder);
+                processVideoFolder(videoFolder, collectionId);
             }
 
         } catch (IOException e) {
@@ -174,8 +172,8 @@ public class CollectionService {
     }
 
     private void processVideoFolder(
-            Path videoFolder
-    ) {
+            Path videoFolder,
+            String collectionId) {
 
         try {
 
@@ -218,7 +216,7 @@ public class CollectionService {
                     videoFile,
                     videoFolder,
                     duration,
-                    progress -> previewProgress.put(preview.toString(), progress)
+                    progress -> previewProgress.put(preview.toString() + "_" + collectionId, progress)
             );
 
         } catch (Exception e) {
