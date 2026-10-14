@@ -5,6 +5,7 @@ import com.webvideoplayer.player.entities.Collection;
 import com.webvideoplayer.player.repositories.CollectionRepository;
 import com.webvideoplayer.player.utils.VideoDurationUtils;
 import com.webvideoplayer.player.utils.VideoPreviewUtils;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.FileSystemResource;
@@ -18,12 +19,16 @@ import java.io.IOException;
 import java.nio.file.*;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class CollectionService {
+    private final Map<String, Integer> previewProgress = new ConcurrentHashMap<>();
 
     private final CollectionRepository collectionRepository;
     private final VideoScannerService videoScannerService;
@@ -160,6 +165,14 @@ public class CollectionService {
         );
     }
 
+    public Integer checkPreviewExistence(String previewPath) {
+        Path preview = Paths.get(previewPath);
+        if (Files.exists(preview)) {
+            return 1;
+        }
+        return 0;
+    }
+
     private void processVideoFolder(
             Path videoFolder
     ) {
@@ -204,7 +217,8 @@ public class CollectionService {
             VideoPreviewUtils.generatePreview(
                     videoFile,
                     videoFolder,
-                    duration
+                    duration,
+                    progress -> previewProgress.put(preview.toString(), progress)
             );
 
         } catch (Exception e) {
@@ -531,5 +545,15 @@ public class CollectionService {
         Path videoFolderPath = collectionFolder.resolve(videoFolder)
                 .normalize();
         return videoScannerService.getVideoMetadata(collectionFolder, videoFolderPath);
+    }
+
+    public Map<String, Integer> getPreviewProgress() {
+        return previewProgress.entrySet()
+                .stream()
+                .filter(entry -> entry.getValue() != 100)
+                .collect(Collectors.toMap(
+                        Map.Entry::getKey,
+                        Map.Entry::getValue
+                ));
     }
 }

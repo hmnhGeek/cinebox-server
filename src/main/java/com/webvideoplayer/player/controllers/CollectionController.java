@@ -16,6 +16,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/collections")
@@ -204,5 +205,10 @@ public class CollectionController {
     @PostMapping("/sync")
     public void sync(@RequestParam String collectionId) {
         collectionService.synchroniseCollection(collectionId);
+    }
+
+    @GetMapping("/preview/preview-progress")
+    public Map<String, Integer> getPreviewProgress() {
+        return collectionService.getPreviewProgress();
     }
 }
