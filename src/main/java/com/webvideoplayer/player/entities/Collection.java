@@ -15,4 +15,5 @@ public class Collection {
     private String id;
     private String title;
     private String folder;
+    private String tagline;
 }

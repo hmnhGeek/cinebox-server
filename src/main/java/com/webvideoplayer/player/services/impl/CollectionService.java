@@ -48,7 +48,7 @@ public class CollectionService {
         generatePreviewsAsync(collectionPath, collectionId);
     }
 
-    public Collection addCollection(String title, String folder) {
+    public Collection addCollection(String title, String folder, String tagline) {
 
         Path collectionPath =
                 Paths.get(folder)
@@ -76,7 +76,7 @@ public class CollectionService {
             );
         }
 
-        Collection collection = new Collection(null, title, folder);
+        Collection collection = new Collection(null, title, folder, tagline);
 
         Collection saved =
                 collectionRepository.save(collection);

@@ -36,7 +36,8 @@ public class CollectionController {
         Collection collection =
                 collectionService.addCollection(
                         request.getTitle(),
-                        request.getFolder()
+                        request.getFolder(),
+                        request.getTagline()
                 );
 
         return ResponseEntity
