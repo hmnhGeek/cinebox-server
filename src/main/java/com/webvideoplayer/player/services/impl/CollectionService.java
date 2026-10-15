@@ -563,4 +563,56 @@ public class CollectionService {
                         Map.Entry::getValue
                 ));
     }
+
+    public Resource getHeroImage(
+            String collectionId
+    ) throws IOException {
+
+        Collection collection = collectionRepository.findById(collectionId)
+                .orElseThrow(() ->
+                        new ResponseStatusException(
+                                HttpStatus.NOT_FOUND,
+                                "Collection not found"
+                        )
+                );
+
+        Path collectionFolder = Paths.get(collection.getFolder())
+                .toAbsolutePath()
+                .normalize();
+
+
+        if (!Files.isDirectory(collectionFolder)) {
+            throw new ResponseStatusException(
+                    HttpStatus.NOT_FOUND,
+                    "Collection folder not found"
+            );
+        }
+
+        Path heroImagePath;
+
+        try (Stream<Path> files = Files.list(collectionFolder)) {
+            heroImagePath = files
+                    .filter(Files::isRegularFile)
+                    .filter(path -> {
+                        String filename = path.getFileName().toString();
+                        int dotIndex = filename.lastIndexOf('.');
+
+                        String baseName = dotIndex > 0
+                                ? filename.substring(0, dotIndex)
+                                : filename;
+
+                        return baseName.equalsIgnoreCase("hero");
+                    })
+                    .findFirst()
+                    .orElseThrow(() ->
+                            new ResponseStatusException(
+                                    HttpStatus.NOT_FOUND,
+                                    "Hero image not found"
+                            )
+                    );
+        }
+
+        return new FileSystemResource(heroImagePath);
+    }
+
 }

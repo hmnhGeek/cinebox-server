@@ -218,4 +218,29 @@ public class CollectionController {
         Collection collection = collectionService.getCollectionById(id);
         return ResponseEntity.ok(collection);
     }
+
+    @GetMapping("/hero-image")
+    public ResponseEntity<Resource> getHeroImage(
+            @RequestParam("collectionId") String collectionId
+    ) {
+        try {
+            Resource resource = collectionService.getHeroImage(collectionId);
+
+            // If the file doesn't exist on disk, resource.getFile() throws FileNotFoundException -> 404
+            File file = resource.getFile();
+
+            String contentType = Files.probeContentType(file.toPath());
+
+            return ResponseEntity.ok()
+                    .contentType(MediaType.parseMediaType(
+                            contentType != null ? contentType : MediaType.APPLICATION_OCTET_STREAM_VALUE
+                    ))
+                    .body(resource);
+
+        } catch (Exception e) {
+            // Print the real error to your IDE console log!
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
 }
