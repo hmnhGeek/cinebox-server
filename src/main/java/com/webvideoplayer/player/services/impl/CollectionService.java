@@ -16,14 +16,17 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.io.IOException;
 import java.nio.file.*;
-import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class CollectionService {
+    private final Map<String, Integer> previewProgress = new ConcurrentHashMap<>();
 
     private final CollectionRepository collectionRepository;
     private final VideoScannerService videoScannerService;
@@ -42,7 +45,7 @@ public class CollectionService {
                         .toAbsolutePath()
                         .normalize();
 
-        generatePreviewsAsync(collectionPath);
+        generatePreviewsAsync(collectionPath, collectionId);
     }
 
     public Collection addCollection(String title, String folder) {
@@ -84,7 +87,7 @@ public class CollectionService {
          * The POST API does not remain blocked while FFmpeg
          * processes potentially large video files.
          */
-        generatePreviewsAsync(collectionPath);
+        generatePreviewsAsync(collectionPath, saved.getId());
 
         return saved;
     }
@@ -126,8 +129,8 @@ public class CollectionService {
 
     @Async
     public void generatePreviewsAsync(
-            Path collectionPath
-    ) {
+            Path collectionPath,
+            String collectionId) {
         log.info(
                 "Starting preview generation for collection: {}",
                 collectionPath
@@ -142,7 +145,7 @@ public class CollectionService {
                     continue;
                 }
 
-                processVideoFolder(videoFolder);
+                processVideoFolder(videoFolder, collectionId);
             }
 
         } catch (IOException e) {
@@ -160,9 +163,17 @@ public class CollectionService {
         );
     }
 
+    public Integer checkPreviewExistence(String previewPath) {
+        Path preview = Paths.get(previewPath);
+        if (Files.exists(preview)) {
+            return 1;
+        }
+        return 0;
+    }
+
     private void processVideoFolder(
-            Path videoFolder
-    ) {
+            Path videoFolder,
+            String collectionId) {
 
         try {
 
@@ -204,7 +215,8 @@ public class CollectionService {
             VideoPreviewUtils.generatePreview(
                     videoFile,
                     videoFolder,
-                    duration
+                    duration,
+                    progress -> previewProgress.put(preview.toString() + "_" + collectionId, progress)
             );
 
         } catch (Exception e) {
@@ -531,5 +543,15 @@ public class CollectionService {
         Path videoFolderPath = collectionFolder.resolve(videoFolder)
                 .normalize();
         return videoScannerService.getVideoMetadata(collectionFolder, videoFolderPath);
+    }
+
+    public Map<String, Integer> getPreviewProgress() {
+        return previewProgress.entrySet()
+                .stream()
+                .filter(entry -> entry.getValue() != 100)
+                .collect(Collectors.toMap(
+                        Map.Entry::getKey,
+                        Map.Entry::getValue
+                ));
     }
 }
