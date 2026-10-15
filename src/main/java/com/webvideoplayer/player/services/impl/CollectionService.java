@@ -304,6 +304,15 @@ public class CollectionService {
                 .toList();
     }
 
+    public Collection getCollectionById(String id) {
+        return collectionRepository.findById(id)
+                .orElseThrow(
+                        () -> new IllegalArgumentException(
+                                "Collection not found: " + id
+                        )
+                );
+    }
+
     public Resource getThumbnail(
             String collectionId,
             String videoFolderName

@@ -212,4 +212,10 @@ public class CollectionController {
     public Map<String, Integer> getPreviewProgress() {
         return collectionService.getPreviewProgress();
     }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<Collection> getCollectionById(@PathVariable String id) {
+        Collection collection = collectionService.getCollectionById(id);
+        return ResponseEntity.ok(collection);
+    }
 }
