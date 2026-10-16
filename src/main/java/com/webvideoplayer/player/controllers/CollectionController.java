@@ -4,6 +4,7 @@ import com.webvideoplayer.player.dto.CreateCollectionRequest;
 import com.webvideoplayer.player.dto.RequestThumbnailDTO;
 import com.webvideoplayer.player.dto.VideoMetadata;
 import com.webvideoplayer.player.entities.Collection;
+import com.webvideoplayer.player.enums.CollectionSyncStatus;
 import com.webvideoplayer.player.services.impl.CollectionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.Resource;
@@ -242,5 +243,15 @@ public class CollectionController {
             e.printStackTrace();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
+    }
+
+    @GetMapping("/sync-status")
+    public Map<String, String> getSyncStatus(
+            @RequestParam String collectionId) {
+
+        CollectionSyncStatus status =
+                collectionService.getSyncStatus(collectionId);
+
+        return Map.of("status", status.name());
     }
 }
