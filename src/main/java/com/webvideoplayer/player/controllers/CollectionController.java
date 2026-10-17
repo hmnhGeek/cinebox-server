@@ -4,6 +4,7 @@ import com.webvideoplayer.player.dto.CreateCollectionRequest;
 import com.webvideoplayer.player.dto.RequestThumbnailDTO;
 import com.webvideoplayer.player.dto.VideoMetadata;
 import com.webvideoplayer.player.entities.Collection;
+import com.webvideoplayer.player.enums.CollectionSyncStatus;
 import com.webvideoplayer.player.services.impl.CollectionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.Resource;
@@ -36,7 +37,8 @@ public class CollectionController {
         Collection collection =
                 collectionService.addCollection(
                         request.getTitle(),
-                        request.getFolder()
+                        request.getFolder(),
+                        request.getTagline()
                 );
 
         return ResponseEntity
@@ -210,5 +212,46 @@ public class CollectionController {
     @GetMapping("/preview/preview-progress")
     public Map<String, Integer> getPreviewProgress() {
         return collectionService.getPreviewProgress();
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<Collection> getCollectionById(@PathVariable String id) {
+        Collection collection = collectionService.getCollectionById(id);
+        return ResponseEntity.ok(collection);
+    }
+
+    @GetMapping("/hero-image")
+    public ResponseEntity<Resource> getHeroImage(
+            @RequestParam("collectionId") String collectionId
+    ) {
+        try {
+            Resource resource = collectionService.getHeroImage(collectionId);
+
+            // If the file doesn't exist on disk, resource.getFile() throws FileNotFoundException -> 404
+            File file = resource.getFile();
+
+            String contentType = Files.probeContentType(file.toPath());
+
+            return ResponseEntity.ok()
+                    .contentType(MediaType.parseMediaType(
+                            contentType != null ? contentType : MediaType.APPLICATION_OCTET_STREAM_VALUE
+                    ))
+                    .body(resource);
+
+        } catch (Exception e) {
+            // Print the real error to your IDE console log!
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    @GetMapping("/sync-status")
+    public Map<String, String> getSyncStatus(
+            @RequestParam String collectionId) {
+
+        CollectionSyncStatus status =
+                collectionService.getSyncStatus(collectionId);
+
+        return Map.of("status", status.name());
     }
 }

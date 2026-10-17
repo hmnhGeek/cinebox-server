@@ -6,4 +6,5 @@ import lombok.Data;
 public class CreateCollectionRequest {
     private String title;
     private String folder;
+    private String tagline;
 }
