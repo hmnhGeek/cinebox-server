@@ -1,19 +1,29 @@
 package com.webvideoplayer.player.entities;
 
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+import org.hibernate.annotations.UuidGenerator;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import org.springframework.data.annotation.Id;
-import org.springframework.data.mongodb.core.mapping.Document;
 
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-@Document(collection = "collections")
+@Entity
+@Table(name = "collections")
 public class Collection {
+
     @Id
+    @GeneratedValue
+    @UuidGenerator
     private String id;
+
     private String title;
+
     private String folder;
+
     private String tagline;
 }
