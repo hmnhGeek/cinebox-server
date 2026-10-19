@@ -17,9 +17,10 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 @Slf4j
@@ -335,9 +336,6 @@ public class CollectionService {
         );
     }
 
-    /*
-     * 13. Get collection hero image
-     */
     public Resource getHeroImage(String collectionId) throws IOException {
 
         Collection collection = getCollectionById(collectionId);
@@ -353,21 +351,33 @@ public class CollectionService {
             );
         }
 
-        Path heroImagePath;
+        Path heroImagesFolder = collectionFolder.resolve("hero_images");
 
-        try (Stream<Path> files = Files.list(collectionFolder)) {
-            heroImagePath = files
-                    .filter(Files::isRegularFile)
-                    .filter(path -> getBaseName(path)
-                            .equalsIgnoreCase("hero"))
-                    .findFirst()
-                    .orElseThrow(() -> new ResponseStatusException(
-                            HttpStatus.NOT_FOUND,
-                            "Hero image not found"
-                    ));
+        if (!Files.isDirectory(heroImagesFolder)) {
+            throw new ResponseStatusException(
+                    HttpStatus.NOT_FOUND,
+                    "Hero images folder not found"
+            );
         }
 
-        return new FileSystemResource(heroImagePath);
+        List<Path> images;
+
+        try (Stream<Path> files = Files.list(heroImagesFolder)) {
+            images = new ArrayList<>(
+                    files.filter(Files::isRegularFile).toList()
+            );
+        }
+
+        if (images.isEmpty()) {
+            throw new ResponseStatusException(
+                    HttpStatus.NOT_FOUND,
+                    "No hero images found"
+            );
+        }
+
+        Collections.shuffle(images);
+
+        return new FileSystemResource(images.getFirst());
     }
 
     /*
