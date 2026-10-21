@@ -205,8 +205,17 @@ public class CollectionController {
     }
 
     @PostMapping("/sync")
-    public void sync(@RequestParam String collectionId) {
+    public ResponseEntity<Void> sync(@RequestParam String collectionId)
+            throws IOException {
         collectionService.synchroniseCollection(collectionId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/previews/generate")
+    public ResponseEntity<Void> generatePreviews(
+            @RequestParam String collectionId) {
+        collectionService.generatePreviews(collectionId);
+        return ResponseEntity.accepted().build();
     }
 
     @GetMapping("/preview/preview-progress")

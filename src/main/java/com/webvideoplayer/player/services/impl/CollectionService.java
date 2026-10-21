@@ -31,6 +31,7 @@ public class CollectionService {
     private final CollectionRepository collectionRepository;
     private final VideoScannerService videoScannerService;
     private final PreviewGenerationService previewGenerationService;
+    private final MediaCatalogSyncService mediaCatalogSyncService;
 
     /*
      * 1. Add collection
@@ -148,18 +149,19 @@ public class CollectionService {
                 ));
     }
 
-    /*
-     * 6. Synchronise collection
-     *
-     * Preview generation runs asynchronously.
-     */
-    public void synchroniseCollection(String collectionId) {
+    public void synchroniseCollection(String collectionId)
+            throws IOException {
 
-        Collection collection = collectionRepository.findById(collectionId)
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND,
-                        "Collection not found"
-                ));
+        // Validate that the collection exists before starting the sync.
+        getCollectionById(collectionId);
+
+        mediaCatalogSyncService.synchronizeCollection(collectionId);
+    }
+
+
+    public void generatePreviews(String collectionId) {
+
+        Collection collection = getCollectionById(collectionId);
 
         Path collectionPath = Paths.get(collection.getFolder())
                 .toAbsolutePath()
@@ -172,6 +174,7 @@ public class CollectionService {
                 collectionId
         );
     }
+
 
     /*
      * 7. Get preview generation progress
