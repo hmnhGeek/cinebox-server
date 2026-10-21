@@ -13,6 +13,21 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 import com.webvideoplayer.player.enums.CollectionSyncStatus;
 
+import com.webvideoplayer.player.entities.MediaItem;
+import com.webvideoplayer.player.entities.MediaMetadata;
+import com.webvideoplayer.player.entities.MediaItemPerson;
+import com.webvideoplayer.player.entities.MediaItemTag;
+import com.webvideoplayer.player.repositories.MediaItemRepository;
+import com.webvideoplayer.player.repositories.MediaMetadataRepository;
+import com.webvideoplayer.player.repositories.MediaItemPersonRepository;
+import com.webvideoplayer.player.repositories.MediaItemTagRepository;
+import com.webvideoplayer.player.dto.Actor;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.nio.charset.StandardCharsets;
+import java.net.URLEncoder;
+import java.util.Comparator;
+
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -32,6 +47,10 @@ public class CollectionService {
     private final VideoScannerService videoScannerService;
     private final PreviewGenerationService previewGenerationService;
     private final MediaCatalogSyncService mediaCatalogSyncService;
+    private final MediaItemRepository mediaItemRepository;
+    private final MediaMetadataRepository mediaMetadataRepository;
+    private final MediaItemPersonRepository mediaItemPersonRepository;
+    private final MediaItemTagRepository mediaItemTagRepository;
 
     /*
      * 1. Add collection
@@ -101,20 +120,156 @@ public class CollectionService {
         collectionRepository.delete(collection);
     }
 
-    /*
-     * 3. Get all videos in a collection
-     */
+
+    @Transactional(readOnly = true)
     public List<VideoMetadata> getVideos(String id) {
 
-        Collection collection = collectionRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException(
-                        "Collection not found: " + id
-                ));
+        Collection collection = getCollectionById(id);
 
-        return videoScannerService.getVideos(
-                Paths.get(collection.getFolder())
-        );
+        Path collectionPath = Paths.get(collection.getFolder())
+                .toAbsolutePath()
+                .normalize();
+
+        return mediaItemRepository
+                .findByCollection_IdOrderByTitleAsc(id)
+                .stream()
+                .map(item -> mapToVideoMetadata(item, collectionPath))
+                .toList();
     }
+
+    private VideoMetadata mapToVideoMetadata(
+            MediaItem item,
+            Path collectionPath) {
+
+        MediaMetadata metadata = mediaMetadataRepository
+                .findByMediaItem_Id(item.getId())
+                .orElse(null);
+
+        Path videoPath = collectionPath
+                .resolve(item.getRelativePath())
+                .normalize();
+
+        Path videoFolder = videoPath.getParent();
+
+        List<MediaItemPerson> people =
+                mediaItemPersonRepository.findByMediaItem_Id(item.getId());
+
+        List<MediaItemTag> itemTags =
+                mediaItemTagRepository.findByMediaItem_Id(item.getId());
+
+        List<String> directors = people.stream()
+                .filter(p -> "DIRECTOR".equalsIgnoreCase(p.getRole()))
+                .map(p -> p.getPerson().getName())
+                .distinct()
+                .toList();
+
+        List<String> writers = people.stream()
+                .filter(p -> "WRITER".equalsIgnoreCase(p.getRole()))
+                .map(p -> p.getPerson().getName())
+                .distinct()
+                .toList();
+
+        List<Actor> actors = people.stream()
+                .filter(p -> "ACTOR".equalsIgnoreCase(p.getRole()))
+                .map(p -> Actor.builder()
+                        .name(p.getPerson().getName())
+                        .role(p.getCharacterName())
+                        .build())
+                .toList();
+
+        List<String> tags = itemTags.stream()
+                .map(t -> t.getTag().getName())
+                .distinct()
+                .toList();
+
+        List<String> genres = metadata == null
+                ? List.of()
+                : metadata.getGenres().stream()
+                .map(genre -> genre.getName())
+                .sorted(String.CASE_INSENSITIVE_ORDER)
+                .toList();
+
+        List<String> studios = metadata == null
+                ? List.of()
+                : metadata.getStudios().stream()
+                .map(studio -> studio.getName())
+                .sorted(String.CASE_INSENSITIVE_ORDER)
+                .toList();
+
+        String thumbnailUrl = videoFolder == null
+                ? null
+                : "/api/v1/collections/thumbnail?collectionId="
+                + URLEncoder.encode(
+                item.getCollection().getId(),
+                StandardCharsets.UTF_8)
+                + "&videoFolder="
+                + URLEncoder.encode(
+                collectionPath.relativize(videoFolder)
+                        .toString(),
+                StandardCharsets.UTF_8);
+
+        return VideoMetadata.builder()
+                .title(item.getTitle())
+                .originalTitle(metadata == null
+                        ? null : metadata.getOriginalTitle())
+                .sortTitle(metadata == null
+                        ? null : metadata.getSortTitle())
+                .plot(metadata == null ? null : metadata.getPlot())
+                .outline(metadata == null ? null : metadata.getOutline())
+                .year(metadata == null ? null : metadata.getYear())
+                .premiered(metadata == null ? null : metadata.getPremiered())
+                .releaseDate(metadata == null
+                        ? null : metadata.getReleaseDate())
+                .runtime(metadata != null && metadata.getRuntimeMinutes() != null
+                        ? metadata.getRuntimeMinutes()
+                        : item.getDurationSeconds() == null
+                        ? null
+                        : (int) Math.round(
+                        item.getDurationSeconds() / 60.0))
+                .studio(studios.isEmpty() ? null : studios.getFirst())
+                .studios(studios)
+                .directors(directors)
+                .writers(writers)
+                .actors(actors)
+                .genres(genres)
+                .tags(tags)
+                .country(metadata == null ? null : metadata.getCountry())
+                .originalCountry(metadata == null
+                        ? null : metadata.getOriginalCountry())
+                .language(metadata == null ? null : metadata.getLanguage())
+                .mpaa(metadata == null ? null : metadata.getMpaa())
+                .website(metadata == null ? null : metadata.getWebsite())
+                .videoPath(videoPath.toString())
+                .posterPath(videoFolder == null
+                        ? null : findAsset(videoFolder, "poster"))
+                .thumbnailPath(videoFolder == null
+                        ? null : findAsset(videoFolder, "thumbnail"))
+                .previewPath(videoFolder == null
+                        ? null : findAsset(videoFolder, "preview"))
+                .thumbnailUrl(thumbnailUrl)
+                .build();
+    }
+
+    private String findAsset(Path folder, String baseName) {
+
+        if (folder == null || !Files.isDirectory(folder)) {
+            return null;
+        }
+
+        try (Stream<Path> files = Files.list(folder)) {
+            return files
+                    .filter(Files::isRegularFile)
+                    .filter(path -> getBaseName(path)
+                            .equalsIgnoreCase(baseName))
+                    .findFirst()
+                    .map(Path::toString)
+                    .orElse(null);
+        } catch (IOException e) {
+            log.warn("Could not locate {} in {}", baseName, folder, e);
+            return null;
+        }
+    }
+
 
     /*
      * 4. Get all collections
