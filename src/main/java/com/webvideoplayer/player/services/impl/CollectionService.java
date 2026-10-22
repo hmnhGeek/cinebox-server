@@ -1,6 +1,7 @@
 
 package com.webvideoplayer.player.services.impl;
 
+import com.webvideoplayer.player.dto.CatalogSyncProgress;
 import com.webvideoplayer.player.dto.VideoMetadata;
 import com.webvideoplayer.player.entities.Collection;
 import com.webvideoplayer.player.repositories.CollectionRepository;
@@ -582,7 +583,11 @@ public class CollectionService {
                 : filename;
     }
 
-    public CollectionSyncStatus getSyncStatus(String collectionId) {
+    public CollectionSyncStatus getPreviewGenerationStatus(String collectionId) {
         return previewGenerationService.getSyncStatus(collectionId);
+    }
+
+    public CatalogSyncProgress getCatalogSyncProgress(String collectionId) {
+        return mediaCatalogSyncAsyncService.getProgress(collectionId);
     }
 }

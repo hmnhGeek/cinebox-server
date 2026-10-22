@@ -42,6 +42,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.stream.Stream;
 
 @Service
@@ -66,14 +67,16 @@ public class MediaCatalogSyncService {
 
     private final VideoScannerService videoScannerService;
 
-    /**
-     * Synchronizes a collection's filesystem contents with the database.
-     *
-     * Existing records are preserved when the directory is unavailable,
-     * a scan fails, or no video files are discovered.
-     */
     @Transactional(rollbackFor = IOException.class)
     public void synchronizeCollection(String collectionId) throws IOException {
+        synchronizeCollection(collectionId, (processed, total) -> {});
+    }
+
+    @Transactional(rollbackFor = IOException.class)
+    public void synchronizeCollection(
+            String collectionId,
+            BiConsumer<Integer, Integer> progressCallback
+    ) throws IOException {
 
         Collection collection = collectionRepository.findById(collectionId)
                 .orElseThrow(() ->
@@ -120,11 +123,14 @@ public class MediaCatalogSyncService {
                     .toList();
         }
 
-        for (Path movieFolder : movieFolders) {
-            Path videoFile;
+        int totalFolders = movieFolders.size();
+        int processedFolders = 0;
 
+        progressCallback.accept(0, totalFolders);
+
+        for (Path movieFolder : movieFolders) {
             try {
-                videoFile = findVideoFile(movieFolder);
+                Path videoFile = findVideoFile(movieFolder);
 
                 // Ignore folders without a supported video file.
                 if (videoFile == null) {
@@ -183,7 +189,8 @@ public class MediaCatalogSyncService {
                         Thread.currentThread().interrupt();
 
                         throw new IOException(
-                                "Video duration detection was interrupted: " + videoFile,
+                                "Video duration detection was interrupted: "
+                                        + videoFile,
                                 e
                         );
                     }
@@ -194,18 +201,23 @@ public class MediaCatalogSyncService {
                 synchronizeMetadata(item, metadata);
 
             } catch (IOException e) {
-
-                // Stop immediately if the thread was interrupted.
                 if (Thread.currentThread().isInterrupted()) {
                     throw e;
                 }
 
                 scanComplete = false;
 
-                // Keep the existing record and continue scanning other folders.
                 System.err.println(
                         "Could not scan " + movieFolder + ": "
                                 + e.getMessage()
+                );
+
+            } finally {
+                processedFolders++;
+
+                progressCallback.accept(
+                        processedFolders,
+                        totalFolders
                 );
             }
         }

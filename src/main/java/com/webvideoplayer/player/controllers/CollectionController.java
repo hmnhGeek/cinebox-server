@@ -1,5 +1,6 @@
 package com.webvideoplayer.player.controllers;
 
+import com.webvideoplayer.player.dto.CatalogSyncProgress;
 import com.webvideoplayer.player.dto.CreateCollectionRequest;
 import com.webvideoplayer.player.dto.RequestThumbnailDTO;
 import com.webvideoplayer.player.dto.VideoMetadata;
@@ -218,10 +219,13 @@ public class CollectionController {
         return ResponseEntity.accepted().build();
     }
 
-    @GetMapping("/preview/preview-progress")
-    public Map<String, Integer> getPreviewProgress() {
-        return collectionService.getPreviewProgress();
-    }
+//    @GetMapping("/preview/preview-progress")
+//    public Map<String, Integer> getPreviewProgress() {
+//        CollectionSyncStatus status =
+//                collectionService.getSyncStatus(collectionId);
+//
+//        return Map.of("status", status.name());
+//    }
 
     @GetMapping("/{id}")
     public ResponseEntity<Collection> getCollectionById(@PathVariable String id) {
@@ -255,12 +259,9 @@ public class CollectionController {
     }
 
     @GetMapping("/sync-status")
-    public Map<String, String> getSyncStatus(
-            @RequestParam String collectionId) {
-
-        CollectionSyncStatus status =
-                collectionService.getSyncStatus(collectionId);
-
-        return Map.of("status", status.name());
+    public CatalogSyncProgress getSyncStatus(
+            @RequestParam String collectionId
+    ) {
+        return collectionService.getCatalogSyncProgress(collectionId);
     }
 }
