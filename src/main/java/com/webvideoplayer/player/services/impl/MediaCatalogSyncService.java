@@ -20,11 +20,8 @@ import com.webvideoplayer.player.repositories.MediaMetadataRepository;
 import com.webvideoplayer.player.repositories.PersonRepository;
 import com.webvideoplayer.player.repositories.StudioRepository;
 import com.webvideoplayer.player.repositories.TagRepository;
-
-import com.webvideoplayer.player.services.impl.VideoScannerService;
 import com.webvideoplayer.player.utils.VideoDurationUtils;
 import lombok.RequiredArgsConstructor;
-
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,7 +31,6 @@ import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -112,7 +108,6 @@ public class MediaCatalogSyncService {
 
         Set<String> discoveredPaths = new HashSet<>();
         boolean scanComplete = true;
-        int discoveredVideoCount = 0;
 
         List<Path> movieFolders;
 
@@ -142,7 +137,6 @@ public class MediaCatalogSyncService {
                 );
 
                 discoveredPaths.add(relativePath);
-                discoveredVideoCount++;
 
                 MediaItem item = existingByPath.get(relativePath);
 
@@ -180,7 +174,8 @@ public class MediaCatalogSyncService {
 
                 if (videoChanged) {
                     try {
-                        double duration = VideoDurationUtils.getDuration(videoFile);
+                        double duration =
+                                VideoDurationUtils.getDuration(videoFile);
 
                         if (Double.isFinite(duration) && duration > 0) {
                             item.setDurationSeconds(Math.round(duration));
@@ -223,11 +218,12 @@ public class MediaCatalogSyncService {
         }
 
         /*
-         * Do not erase the index if the scan was incomplete or found no
-         * videos. An empty result can mean a disconnected drive or a
-         * temporarily unavailable/locked folder.
+         * Only skip cleanup when scanning was incomplete.
+         *
+         * A successfully completed scan with zero discovered videos is valid.
+         * In that case, stale database entries must be deleted.
          */
-        if (!scanComplete || discoveredVideoCount == 0) {
+        if (!scanComplete) {
             return;
         }
 
@@ -244,7 +240,8 @@ public class MediaCatalogSyncService {
 
     private void synchronizeMetadata(
             MediaItem item,
-            VideoMetadata source) {
+            VideoMetadata source
+    ) {
 
         if (source == null) {
             return;
@@ -286,7 +283,7 @@ public class MediaCatalogSyncService {
 
         metadata.setGenres(new HashSet<>(genres.values()));
 
-        // Studios: include both the singular and plural DTO fields.
+        // Studios: include both singular and plural DTO fields.
         Map<String, Studio> studios = new LinkedHashMap<>();
 
         addStudio(studios, source.getStudio());
@@ -359,7 +356,8 @@ public class MediaCatalogSyncService {
             List<MediaItemPerson> target,
             MediaItem item,
             List<String> names,
-            String role) {
+            String role
+    ) {
 
         if (names == null) {
             return;
@@ -387,7 +385,8 @@ public class MediaCatalogSyncService {
 
     private void addStudio(
             Map<String, Studio> studios,
-            String name) {
+            String name
+    ) {
 
         if (hasText(name)) {
             studios.put(
@@ -511,7 +510,8 @@ public class MediaCatalogSyncService {
 
     private String resolveTitle(
             VideoMetadata metadata,
-            Path movieFolder) {
+            Path movieFolder
+    ) {
 
         if (metadata != null && hasText(metadata.getTitle())) {
             return metadata.getTitle().trim();

@@ -62,13 +62,15 @@ public class MediaCatalogAsyncService {
             CatalogSyncProgress current =
                     progressByCollection.get(collectionId);
 
+            int total = current == null ? 0 : current.total();
+
             progressByCollection.put(
                     collectionId,
                     new CatalogSyncProgress(
                             CollectionSyncStatus.COMPLETED,
                             100,
-                            current.total(),
-                            current.total()
+                            total,
+                            total
                     )
             );
 
