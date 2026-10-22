@@ -23,6 +23,7 @@ public class MediaCatalogAsyncService {
 
     @Async("catalogSyncExecutor")
     public void synchronizeCollectionAsync(String collectionId) {
+        log.info("Putting catalog sync in QUEUE for collection {}", collectionId);
         progressByCollection.put(
                 collectionId,
                 new CatalogSyncProgress(
@@ -31,6 +32,7 @@ public class MediaCatalogAsyncService {
         );
 
         try {
+            log.info("Putting catalog sync in PROGRESS for collection {}", collectionId);
             progressByCollection.put(
                     collectionId,
                     new CatalogSyncProgress(
@@ -102,7 +104,7 @@ public class MediaCatalogAsyncService {
         return progressByCollection.getOrDefault(
                 collectionId,
                 new CatalogSyncProgress(
-                        CollectionSyncStatus.QUEUED, 0, 0, 0
+                        CollectionSyncStatus.COMPLETED, 100, 0, 0
                 )
         );
     }

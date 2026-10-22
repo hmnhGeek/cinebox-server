@@ -47,7 +47,7 @@ public class CollectionService {
     private final CollectionRepository collectionRepository;
     private final VideoScannerService videoScannerService;
     private final PreviewGenerationService previewGenerationService;
-    private final MediaCatalogSyncService mediaCatalogSyncService;
+    private final MediaCatalogAsyncService mediaCatalogAsyncService;
     private final MediaCatalogAsyncService mediaCatalogSyncAsyncService;
     private final MediaItemRepository mediaItemRepository;
     private final MediaMetadataRepository mediaMetadataRepository;
@@ -108,12 +108,7 @@ public class CollectionService {
         return saved;
     }
 
-    /*
-     * 2. Delete collection
-     *
-     * Only the MongoDB record is deleted.
-     * Actual video files remain untouched.
-     */
+    @Transactional
     public void deleteCollection(String id) {
 
         Collection collection = collectionRepository.findById(id)
@@ -121,9 +116,24 @@ public class CollectionService {
                         "Collection not found: " + id
                 ));
 
+        List<MediaItem> items =
+                mediaItemRepository.findByCollection_IdOrderByTitleAsc(id);
+
+        for (MediaItem item : items) {
+
+            String itemId = item.getId();
+
+            mediaItemPersonRepository.deleteByMediaItem_Id(itemId);
+            mediaItemTagRepository.deleteByMediaItem_Id(itemId);
+
+            mediaMetadataRepository.findByMediaItem_Id(itemId)
+                    .ifPresent(mediaMetadataRepository::delete);
+
+            mediaItemRepository.delete(item);
+        }
+
         collectionRepository.delete(collection);
     }
-
 
     @Transactional(readOnly = true)
     public List<VideoMetadata> getVideos(String id) {
