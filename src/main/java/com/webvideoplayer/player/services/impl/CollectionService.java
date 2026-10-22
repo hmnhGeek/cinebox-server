@@ -47,14 +47,13 @@ public class CollectionService {
     private final VideoScannerService videoScannerService;
     private final PreviewGenerationService previewGenerationService;
     private final MediaCatalogSyncService mediaCatalogSyncService;
+    private final MediaCatalogAsyncService mediaCatalogSyncAsyncService;
     private final MediaItemRepository mediaItemRepository;
     private final MediaMetadataRepository mediaMetadataRepository;
     private final MediaItemPersonRepository mediaItemPersonRepository;
     private final MediaItemTagRepository mediaItemTagRepository;
 
-    /*
-     * 1. Add collection
-     */
+
     public Collection addCollection(
             String title,
             String folder,
@@ -76,6 +75,12 @@ public class CollectionService {
             );
         }
 
+        if (!Files.isReadable(collectionPath)) {
+            throw new IllegalArgumentException(
+                    "Folder is not readable: " + collectionPath
+            );
+        }
+
         if (collectionRepository.existsByFolder(
                 collectionPath.toString())) {
             throw new IllegalArgumentException(
@@ -86,20 +91,18 @@ public class CollectionService {
         Collection collection = new Collection(
                 null,
                 title,
-                folder,
+                collectionPath.toString(),
                 tagline
         );
 
         Collection saved = collectionRepository.save(collection);
 
-        previewGenerationService.markQueued(saved.getId());
-
-        // Submit preview generation to the background executor.
-        // This call goes through another Spring-managed bean.
-        previewGenerationService.generatePreviewsAsync(
-                collectionPath,
+        // Start catalog synchronization in the background.
+        mediaCatalogSyncAsyncService.synchronizeCollectionAsync(
                 saved.getId()
         );
+
+        // Preview generation is intentionally not triggered here.
 
         return saved;
     }
@@ -304,13 +307,11 @@ public class CollectionService {
                 ));
     }
 
-    public void synchroniseCollection(String collectionId)
-            throws IOException {
-
-        // Validate that the collection exists before starting the sync.
+    public void synchroniseCollection(String collectionId) {
         getCollectionById(collectionId);
-
-        mediaCatalogSyncService.synchronizeCollection(collectionId);
+        mediaCatalogSyncAsyncService.synchronizeCollectionAsync(
+                collectionId
+        );
     }
 
 
