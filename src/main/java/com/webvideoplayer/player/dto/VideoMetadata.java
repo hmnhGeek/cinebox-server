@@ -39,7 +39,6 @@ public class VideoMetadata {
 
     private String videoPath;
     private String posterPath;
-    private String thumbnailPath;
     private String previewPath;
     private String thumbnailUrl;
 }

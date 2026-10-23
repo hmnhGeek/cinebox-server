@@ -252,8 +252,6 @@ public class CollectionService {
                 .videoPath(videoPath.toString())
                 .posterPath(videoFolder == null
                         ? null : findAsset(videoFolder, "poster"))
-                .thumbnailPath(videoFolder == null
-                        ? null : findAsset(videoFolder, "thumbnail"))
                 .previewPath(videoFolder == null
                         ? null : findAsset(videoFolder, "preview"))
                 .thumbnailUrl(thumbnailUrl)

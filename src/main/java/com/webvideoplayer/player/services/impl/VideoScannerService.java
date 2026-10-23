@@ -216,7 +216,6 @@ public class VideoScannerService {
 
                 .videoPath(videoFile.toString())
                 .posterPath(poster != null ? poster.toString() : null)
-                .thumbnailPath(thumbnail != null ? thumbnail.toString() : null)
                 .previewPath(Files.exists(preview) ? preview.toString() : null)
                 .thumbnailUrl(
                         String.format(
