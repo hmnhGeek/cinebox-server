@@ -151,7 +151,7 @@ public class CollectionService {
                 .toList();
     }
 
-    private VideoMetadata mapToVideoMetadata(
+    public VideoMetadata mapToVideoMetadata(
             MediaItem item,
             Path collectionPath) {
 
