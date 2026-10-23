@@ -210,19 +210,15 @@ public class CollectionService {
                 .sorted(String.CASE_INSENSITIVE_ORDER)
                 .toList();
 
-        String thumbnailUrl = videoFolder == null
-                ? null
-                : "/api/v1/collections/thumbnail?collectionId="
-                + URLEncoder.encode(
-                item.getCollection().getId(),
-                StandardCharsets.UTF_8)
-                + "&videoFolder="
-                + URLEncoder.encode(
-                collectionPath.relativize(videoFolder)
-                        .toString(),
-                StandardCharsets.UTF_8);
+        String thumbnailUrl =
+                "/api/v1/collections/thumbnail?mediaItemId="
+                        + URLEncoder.encode(
+                        item.getId(),
+                        StandardCharsets.UTF_8
+                );
 
         return VideoMetadata.builder()
+                .id(item.getId())
                 .title(item.getTitle())
                 .originalTitle(metadata == null
                         ? null : metadata.getOriginalTitle())
@@ -351,30 +347,50 @@ public class CollectionService {
     }
 
     /*
-     * 8. Get thumbnail
+     * Get thumbnail by media item ID.
      */
-    public Resource getThumbnail(
-            String collectionId,
-            String videoFolderName) throws IOException {
+    @Transactional(readOnly = true)
+    public Resource getThumbnail(String mediaItemId) throws IOException {
 
-        Collection collection = getCollectionById(collectionId);
+        MediaItem item = mediaItemRepository.findById(mediaItemId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Media item not found"
+                ));
 
-        Path collectionFolder = Paths.get(collection.getFolder())
-                .toAbsolutePath()
+        Path collectionFolder = Paths.get(
+                item.getCollection().getFolder()
+        ).toAbsolutePath().normalize();
+
+        Path videoPath = collectionFolder
+                .resolve(item.getRelativePath())
                 .normalize();
 
-        Path videoFolder = resolveVideoFolder(
-                collectionFolder,
-                videoFolderName
-        );
+        // Prevent paths outside the collection directory.
+        if (!videoPath.startsWith(collectionFolder)) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Invalid media item path"
+            );
+        }
+
+        Path videoFolder = videoPath.getParent();
+
+        if (videoFolder == null || !Files.isDirectory(videoFolder)) {
+            throw new ResponseStatusException(
+                    HttpStatus.NOT_FOUND,
+                    "Video folder not found"
+            );
+        }
 
         Path thumbnailPath;
 
         try (Stream<Path> files = Files.list(videoFolder)) {
             thumbnailPath = files
                     .filter(Files::isRegularFile)
-                    .filter(path -> getBaseName(path)
-                            .equalsIgnoreCase("thumbnail"))
+                    .filter(path ->
+                            getBaseName(path).equalsIgnoreCase("thumbnail")
+                    )
                     .findFirst()
                     .orElseThrow(() -> new ResponseStatusException(
                             HttpStatus.NOT_FOUND,
@@ -482,28 +498,19 @@ public class CollectionService {
         return new FileSystemResource(videoMetadata.getVideoPath());
     }
 
-    /*
-     * 12. Get video metadata
-     */
-    public VideoMetadata getVideoMetaData(
-            String collectionId,
-            String videoFolderName) {
+    @Transactional(readOnly = true)
+    public VideoMetadata getVideoMetadata(String mediaItemId) {
+        MediaItem item = mediaItemRepository.findById(mediaItemId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Media item not found"
+                ));
 
-        Collection collection = getCollectionById(collectionId);
-
-        Path collectionFolder = Paths.get(collection.getFolder())
+        Path collectionPath = Paths.get(item.getCollection().getFolder())
                 .toAbsolutePath()
                 .normalize();
 
-        Path videoFolder = resolveVideoFolder(
-                collectionFolder,
-                videoFolderName
-        );
-
-        return videoScannerService.getVideoMetadata(
-                collectionFolder,
-                videoFolder
-        );
+        return mapToVideoMetadata(item, collectionPath);
     }
 
     public Resource getHeroImage(String collectionId) throws IOException {

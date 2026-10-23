@@ -8,6 +8,7 @@ import java.util.List;
 @Data
 @Builder
 public class VideoMetadata {
+    private String id;
 
     private String title;
     private String originalTitle;

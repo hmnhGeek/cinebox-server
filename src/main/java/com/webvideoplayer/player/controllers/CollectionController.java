@@ -88,28 +88,21 @@ public class CollectionController {
 
     @GetMapping("/thumbnail")
     public ResponseEntity<Resource> getThumbnail(
-            @RequestParam("collectionId") String collectionId,
-            @RequestParam("videoFolder") String videoFolder
-    ) {
-        try {
-            Resource resource = collectionService.getThumbnail(collectionId, videoFolder);
+            @RequestParam("mediaItemId") String mediaItemId
+    ) throws IOException {
 
-            // If the file doesn't exist on disk, resource.getFile() throws FileNotFoundException -> 404
-            File file = resource.getFile();
+        Resource resource = collectionService.getThumbnail(mediaItemId);
 
-            String contentType = Files.probeContentType(file.toPath());
+        File file = resource.getFile();
+        String contentType = Files.probeContentType(file.toPath());
 
-            return ResponseEntity.ok()
-                    .contentType(MediaType.parseMediaType(
-                            contentType != null ? contentType : MediaType.APPLICATION_OCTET_STREAM_VALUE
-                    ))
-                    .body(resource);
-
-        } catch (Exception e) {
-            // Print the real error to your IDE console log!
-            e.printStackTrace();
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-        }
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(
+                        contentType != null
+                                ? contentType
+                                : MediaType.APPLICATION_OCTET_STREAM_VALUE
+                ))
+                .body(resource);
     }
 
     @GetMapping("/preview")
@@ -192,17 +185,12 @@ public class CollectionController {
 
     @GetMapping("/metadata")
     public ResponseEntity<VideoMetadata> getVideoMetadata(
-            @RequestParam("collectionId") String collectionId,
-            @RequestParam("videoFolder") String videoFolder
+            @RequestParam("mediaItemId") String mediaItemId
     ) {
-        try {
-            VideoMetadata videoMetadata = collectionService.getVideoMetaData(collectionId, videoFolder);
-            return ResponseEntity.ok(videoMetadata);
-        } catch (Exception e) {
-            // Print the real error to your IDE console log!
-            e.printStackTrace();
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-        }
+        VideoMetadata videoMetadata =
+                collectionService.getVideoMetadata(mediaItemId);
+
+        return ResponseEntity.ok(videoMetadata);
     }
 
     @PostMapping("/sync")
