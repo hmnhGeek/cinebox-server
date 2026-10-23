@@ -8,6 +8,7 @@ import java.util.List;
 @Data
 @Builder
 public class VideoMetadata {
+    private String id;
 
     private String title;
     private String originalTitle;
@@ -36,9 +37,5 @@ public class VideoMetadata {
     private String mpaa;
     private String website;
 
-    private String videoPath;
-    private String posterPath;
-    private String thumbnailPath;
-    private String previewPath;
     private String thumbnailUrl;
 }

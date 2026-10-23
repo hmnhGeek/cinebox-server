@@ -1,5 +1,6 @@
 package com.webvideoplayer.player.controllers;
 
+import com.webvideoplayer.player.dto.CatalogSyncProgress;
 import com.webvideoplayer.player.dto.CreateCollectionRequest;
 import com.webvideoplayer.player.dto.RequestThumbnailDTO;
 import com.webvideoplayer.player.dto.VideoMetadata;
@@ -87,132 +88,111 @@ public class CollectionController {
 
     @GetMapping("/thumbnail")
     public ResponseEntity<Resource> getThumbnail(
-            @RequestParam("collectionId") String collectionId,
-            @RequestParam("videoFolder") String videoFolder
-    ) {
-        try {
-            Resource resource = collectionService.getThumbnail(collectionId, videoFolder);
+            @RequestParam("mediaItemId") String mediaItemId
+    ) throws IOException {
 
-            // If the file doesn't exist on disk, resource.getFile() throws FileNotFoundException -> 404
-            File file = resource.getFile();
+        Resource resource = collectionService.getThumbnail(mediaItemId);
 
-            String contentType = Files.probeContentType(file.toPath());
+        File file = resource.getFile();
+        String contentType = Files.probeContentType(file.toPath());
 
-            return ResponseEntity.ok()
-                    .contentType(MediaType.parseMediaType(
-                            contentType != null ? contentType : MediaType.APPLICATION_OCTET_STREAM_VALUE
-                    ))
-                    .body(resource);
-
-        } catch (Exception e) {
-            // Print the real error to your IDE console log!
-            e.printStackTrace();
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-        }
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(
+                        contentType != null
+                                ? contentType
+                                : MediaType.APPLICATION_OCTET_STREAM_VALUE
+                ))
+                .body(resource);
     }
 
     @GetMapping("/preview")
     public ResponseEntity<Resource> getPreview(
-            @RequestParam("collectionId") String collectionId,
-            @RequestParam("videoFolder") String videoFolder
-    ) {
-        try {
-            Resource resource = collectionService.getPreview(collectionId, videoFolder);
+            @RequestParam("mediaItemId") String mediaItemId
+    ) throws IOException {
 
-            // If the file doesn't exist on disk, resource.getFile() throws FileNotFoundException -> 404
-            File file = resource.getFile();
+        Resource resource = collectionService.getPreview(mediaItemId);
 
-            String contentType = Files.probeContentType(file.toPath());
+        File file = resource.getFile();
+        String contentType = Files.probeContentType(file.toPath());
 
-            return ResponseEntity.ok()
-                    .contentType(MediaType.parseMediaType(
-                            contentType != null ? contentType : MediaType.APPLICATION_OCTET_STREAM_VALUE
-                    ))
-                    .body(resource);
-
-        } catch (Exception e) {
-            // Print the real error to your IDE console log!
-            e.printStackTrace();
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-        }
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(
+                        contentType != null
+                                ? contentType
+                                : MediaType.APPLICATION_OCTET_STREAM_VALUE
+                ))
+                .body(resource);
     }
 
     @GetMapping("/poster")
     public ResponseEntity<Resource> getPoster(
-            @RequestParam("collectionId") String collectionId,
-            @RequestParam("videoFolder") String videoFolder
-    ) {
-        try {
-            Resource resource = collectionService.getPoster(collectionId, videoFolder);
+            @RequestParam("mediaItemId") String mediaItemId
+    ) throws IOException {
 
-            // If the file doesn't exist on disk, resource.getFile() throws FileNotFoundException -> 404
-            File file = resource.getFile();
+        Resource resource = collectionService.getPoster(mediaItemId);
 
-            String contentType = Files.probeContentType(file.toPath());
+        File file = resource.getFile();
+        String contentType = Files.probeContentType(file.toPath());
 
-            return ResponseEntity.ok()
-                    .contentType(MediaType.parseMediaType(
-                            contentType != null ? contentType : MediaType.APPLICATION_OCTET_STREAM_VALUE
-                    ))
-                    .body(resource);
-
-        } catch (Exception e) {
-            // Print the real error to your IDE console log!
-            e.printStackTrace();
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-        }
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(
+                        contentType != null
+                                ? contentType
+                                : MediaType.APPLICATION_OCTET_STREAM_VALUE
+                ))
+                .body(resource);
     }
 
     @GetMapping("/video")
     public ResponseEntity<Resource> getVideo(
-            @RequestParam("collectionId") String collectionId,
-            @RequestParam("videoFolder") String videoFolder
-    ) {
-        try {
-            Resource resource = collectionService.getVideo(collectionId, videoFolder);
+            @RequestParam("mediaItemId") String mediaItemId
+    ) throws IOException {
 
-            // If the file doesn't exist on disk, resource.getFile() throws FileNotFoundException -> 404
-            File file = resource.getFile();
+        Resource resource = collectionService.getVideo(mediaItemId);
 
-            String contentType = Files.probeContentType(file.toPath());
+        File file = resource.getFile();
+        String contentType = Files.probeContentType(file.toPath());
 
-            return ResponseEntity.ok()
-                    .contentType(MediaType.parseMediaType(
-                            contentType != null ? contentType : MediaType.APPLICATION_OCTET_STREAM_VALUE
-                    ))
-                    .body(resource);
-
-        } catch (Exception e) {
-            // Print the real error to your IDE console log!
-            e.printStackTrace();
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-        }
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(
+                        contentType != null
+                                ? contentType
+                                : MediaType.APPLICATION_OCTET_STREAM_VALUE
+                ))
+                .body(resource);
     }
 
     @GetMapping("/metadata")
     public ResponseEntity<VideoMetadata> getVideoMetadata(
-            @RequestParam("collectionId") String collectionId,
-            @RequestParam("videoFolder") String videoFolder
+            @RequestParam("mediaItemId") String mediaItemId
     ) {
-        try {
-            VideoMetadata videoMetadata = collectionService.getVideoMetaData(collectionId, videoFolder);
-            return ResponseEntity.ok(videoMetadata);
-        } catch (Exception e) {
-            // Print the real error to your IDE console log!
-            e.printStackTrace();
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-        }
+        VideoMetadata videoMetadata =
+                collectionService.getVideoMetadata(mediaItemId);
+
+        return ResponseEntity.ok(videoMetadata);
     }
 
     @PostMapping("/sync")
-    public void sync(@RequestParam String collectionId) {
+    public ResponseEntity<Void> sync(@RequestParam String collectionId)
+            throws IOException {
         collectionService.synchroniseCollection(collectionId);
+        return ResponseEntity.noContent().build();
     }
 
-    @GetMapping("/preview/preview-progress")
-    public Map<String, Integer> getPreviewProgress() {
-        return collectionService.getPreviewProgress();
+    @PostMapping("/previews/generate")
+    public ResponseEntity<Void> generatePreviews(
+            @RequestParam String collectionId) {
+        collectionService.generatePreviews(collectionId);
+        return ResponseEntity.accepted().build();
     }
+
+//    @GetMapping("/preview/preview-progress")
+//    public Map<String, Integer> getPreviewProgress() {
+//        CollectionSyncStatus status =
+//                collectionService.getSyncStatus(collectionId);
+//
+//        return Map.of("status", status.name());
+//    }
 
     @GetMapping("/{id}")
     public ResponseEntity<Collection> getCollectionById(@PathVariable String id) {
@@ -246,12 +226,9 @@ public class CollectionController {
     }
 
     @GetMapping("/sync-status")
-    public Map<String, String> getSyncStatus(
-            @RequestParam String collectionId) {
-
-        CollectionSyncStatus status =
-                collectionService.getSyncStatus(collectionId);
-
-        return Map.of("status", status.name());
+    public CatalogSyncProgress getSyncStatus(
+            @RequestParam String collectionId
+    ) {
+        return collectionService.getCatalogSyncProgress(collectionId);
     }
 }
