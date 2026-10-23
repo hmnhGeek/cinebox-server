@@ -250,8 +250,6 @@ public class CollectionService {
                 .mpaa(metadata == null ? null : metadata.getMpaa())
                 .website(metadata == null ? null : metadata.getWebsite())
                 .videoPath(videoPath.toString())
-                .posterPath(videoFolder == null
-                        ? null : findAsset(videoFolder, "poster"))
                 .thumbnailUrl(thumbnailUrl)
                 .build();
     }
@@ -452,22 +450,41 @@ public class CollectionService {
     }
 
     /*
-     * 10. Get poster
+     * Get poster by media item ID.
      */
-    public Resource getPoster(
-            String collectionId,
-            String videoFolderName) throws IOException {
+    @Transactional(readOnly = true)
+    public Resource getPoster(String mediaItemId) throws IOException {
 
-        Collection collection = getCollectionById(collectionId);
+        MediaItem item = mediaItemRepository.findById(mediaItemId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Media item not found"
+                ));
 
-        Path collectionFolder = Paths.get(collection.getFolder())
-                .toAbsolutePath()
+        Path collectionFolder = Paths.get(
+                item.getCollection().getFolder()
+        ).toAbsolutePath().normalize();
+
+        Path videoPath = collectionFolder
+                .resolve(item.getRelativePath())
                 .normalize();
 
-        Path videoFolder = resolveVideoFolder(
-                collectionFolder,
-                videoFolderName
-        );
+        // Prevent paths outside the collection directory.
+        if (!videoPath.startsWith(collectionFolder)) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Invalid media item path"
+            );
+        }
+
+        Path videoFolder = videoPath.getParent();
+
+        if (videoFolder == null || !Files.isDirectory(videoFolder)) {
+            throw new ResponseStatusException(
+                    HttpStatus.NOT_FOUND,
+                    "Video folder not found"
+            );
+        }
 
         Path posterPath;
 

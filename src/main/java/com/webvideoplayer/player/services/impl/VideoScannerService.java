@@ -215,7 +215,6 @@ public class VideoScannerService {
                 .website(nfoMetadata.website)
 
                 .videoPath(videoFile.toString())
-                .posterPath(poster != null ? poster.toString() : null)
                 .thumbnailUrl(
                         String.format(
                                 "/collections/{collectionId}/videos/%s/thumbnail",
