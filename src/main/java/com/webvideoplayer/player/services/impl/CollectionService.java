@@ -249,7 +249,6 @@ public class CollectionService {
                 .language(metadata == null ? null : metadata.getLanguage())
                 .mpaa(metadata == null ? null : metadata.getMpaa())
                 .website(metadata == null ? null : metadata.getWebsite())
-                .videoPath(videoPath.toString())
                 .thumbnailUrl(thumbnailUrl)
                 .build();
     }
@@ -504,30 +503,42 @@ public class CollectionService {
     }
 
     /*
-     * 11. Get video file
+     * Get video by media item ID.
      */
-    public Resource getVideo(
-            String collectionId,
-            String videoFolderName) {
+    @Transactional(readOnly = true)
+    public Resource getVideo(String mediaItemId) {
 
-        Collection collection = getCollectionById(collectionId);
+        MediaItem item = mediaItemRepository.findById(mediaItemId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Media item not found"
+                ));
 
-        Path collectionFolder = Paths.get(collection.getFolder())
-                .toAbsolutePath()
+        Path collectionFolder = Paths.get(
+                item.getCollection().getFolder()
+        ).toAbsolutePath().normalize();
+
+        Path videoPath = collectionFolder
+                .resolve(item.getRelativePath())
                 .normalize();
 
-        Path videoFolder = resolveVideoFolder(
-                collectionFolder,
-                videoFolderName
-        );
+        // Prevent paths outside the collection directory.
+        if (!videoPath.startsWith(collectionFolder)) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Invalid media item path"
+            );
+        }
 
-        VideoMetadata videoMetadata =
-                videoScannerService.getVideoMetadata(
-                        collectionFolder,
-                        videoFolder
-                );
+        if (!Files.isRegularFile(videoPath)
+                || !Files.isReadable(videoPath)) {
+            throw new ResponseStatusException(
+                    HttpStatus.NOT_FOUND,
+                    "Video file not found or not readable"
+            );
+        }
 
-        return new FileSystemResource(videoMetadata.getVideoPath());
+        return new FileSystemResource(videoPath);
     }
 
     @Transactional(readOnly = true)

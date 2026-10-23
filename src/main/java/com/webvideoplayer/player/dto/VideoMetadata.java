@@ -37,6 +37,5 @@ public class VideoMetadata {
     private String mpaa;
     private String website;
 
-    private String videoPath;
     private String thumbnailUrl;
 }

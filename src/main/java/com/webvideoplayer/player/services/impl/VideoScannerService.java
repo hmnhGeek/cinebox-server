@@ -214,7 +214,6 @@ public class VideoScannerService {
                 .mpaa(nfoMetadata.mpaa)
                 .website(nfoMetadata.website)
 
-                .videoPath(videoFile.toString())
                 .thumbnailUrl(
                         String.format(
                                 "/collections/{collectionId}/videos/%s/thumbnail",
