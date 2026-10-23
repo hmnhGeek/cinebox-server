@@ -308,7 +308,6 @@ public class CollectionService {
     }
 
     public void synchroniseCollection(String collectionId) {
-        getCollectionById(collectionId);
         mediaCatalogSyncAsyncService.synchronizeCollectionAsync(
                 collectionId
         );
