@@ -107,28 +107,21 @@ public class CollectionController {
 
     @GetMapping("/preview")
     public ResponseEntity<Resource> getPreview(
-            @RequestParam("collectionId") String collectionId,
-            @RequestParam("videoFolder") String videoFolder
-    ) {
-        try {
-            Resource resource = collectionService.getPreview(collectionId, videoFolder);
+            @RequestParam("mediaItemId") String mediaItemId
+    ) throws IOException {
 
-            // If the file doesn't exist on disk, resource.getFile() throws FileNotFoundException -> 404
-            File file = resource.getFile();
+        Resource resource = collectionService.getPreview(mediaItemId);
 
-            String contentType = Files.probeContentType(file.toPath());
+        File file = resource.getFile();
+        String contentType = Files.probeContentType(file.toPath());
 
-            return ResponseEntity.ok()
-                    .contentType(MediaType.parseMediaType(
-                            contentType != null ? contentType : MediaType.APPLICATION_OCTET_STREAM_VALUE
-                    ))
-                    .body(resource);
-
-        } catch (Exception e) {
-            // Print the real error to your IDE console log!
-            e.printStackTrace();
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-        }
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(
+                        contentType != null
+                                ? contentType
+                                : MediaType.APPLICATION_OCTET_STREAM_VALUE
+                ))
+                .body(resource);
     }
 
     @GetMapping("/poster")

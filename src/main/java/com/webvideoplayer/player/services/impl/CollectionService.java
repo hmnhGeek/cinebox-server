@@ -252,8 +252,6 @@ public class CollectionService {
                 .videoPath(videoPath.toString())
                 .posterPath(videoFolder == null
                         ? null : findAsset(videoFolder, "poster"))
-                .previewPath(videoFolder == null
-                        ? null : findAsset(videoFolder, "preview"))
                 .thumbnailUrl(thumbnailUrl)
                 .build();
     }
@@ -400,22 +398,41 @@ public class CollectionService {
     }
 
     /*
-     * 9. Get preview
+     * Get preview by media item ID.
      */
-    public Resource getPreview(
-            String collectionId,
-            String videoFolderName) throws IOException {
+    @Transactional(readOnly = true)
+    public Resource getPreview(String mediaItemId) throws IOException {
 
-        Collection collection = getCollectionById(collectionId);
+        MediaItem item = mediaItemRepository.findById(mediaItemId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Media item not found"
+                ));
 
-        Path collectionFolder = Paths.get(collection.getFolder())
-                .toAbsolutePath()
+        Path collectionFolder = Paths.get(
+                item.getCollection().getFolder()
+        ).toAbsolutePath().normalize();
+
+        Path videoPath = collectionFolder
+                .resolve(item.getRelativePath())
                 .normalize();
 
-        Path videoFolder = resolveVideoFolder(
-                collectionFolder,
-                videoFolderName
-        );
+        // Prevent paths outside the collection directory.
+        if (!videoPath.startsWith(collectionFolder)) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Invalid media item path"
+            );
+        }
+
+        Path videoFolder = videoPath.getParent();
+
+        if (videoFolder == null || !Files.isDirectory(videoFolder)) {
+            throw new ResponseStatusException(
+                    HttpStatus.NOT_FOUND,
+                    "Video folder not found"
+            );
+        }
 
         Path previewPath;
 
