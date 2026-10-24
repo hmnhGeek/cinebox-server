@@ -1,6 +1,10 @@
 package com.webvideoplayer.player.services.impl;
 
-import com.webvideoplayer.player.dto.Actor;
+import com.webvideoplayer.player.dto.ActorDTO;
+import com.webvideoplayer.player.dto.GenreDTO;
+import com.webvideoplayer.player.dto.PersonDTO;
+import com.webvideoplayer.player.dto.StudioDTO;
+import com.webvideoplayer.player.dto.TagDTO;
 import com.webvideoplayer.player.dto.VideoMetadata;
 import com.webvideoplayer.player.entities.Collection;
 import com.webvideoplayer.player.entities.Genre;
@@ -146,8 +150,7 @@ public class MediaCatalogSyncService {
                     item.setRelativePath(relativePath);
                 }
 
-                FileTime fileTime =
-                        Files.getLastModifiedTime(videoFile);
+                FileTime fileTime = Files.getLastModifiedTime(videoFile);
 
                 Instant modifiedAt = fileTime.toInstant();
                 long fileSize = Files.size(videoFile);
@@ -164,6 +167,11 @@ public class MediaCatalogSyncService {
                                 collectionPath,
                                 movieFolder
                         );
+
+                // Associate the scanned metadata with its owning collection.
+                if (metadata != null) {
+                    metadata.setCollectionId(collection.getId());
+                }
 
                 String title = resolveTitle(metadata, movieFolder);
 
@@ -269,28 +277,34 @@ public class MediaCatalogSyncService {
         metadata.setMpaa(source.getMpaa());
         metadata.setWebsite(source.getWebsite());
 
-        // Genres: reuse normalized records.
+        // Genres: resolve DTO names to persistent database entities.
         Map<String, Genre> genres = new LinkedHashMap<>();
 
         if (source.getGenres() != null) {
-            for (String name : source.getGenres()) {
-                if (hasText(name)) {
-                    Genre genre = getOrCreateGenre(name);
-                    genres.put(normalizeName(name), genre);
+            for (GenreDTO genreDTO : source.getGenres()) {
+                if (genreDTO == null || !hasText(genreDTO.getName())) {
+                    continue;
                 }
+
+                String name = genreDTO.getName().trim();
+
+                genres.put(
+                        normalizeName(name),
+                        getOrCreateGenre(name)
+                );
             }
         }
 
         metadata.setGenres(new HashSet<>(genres.values()));
 
-        // Studios: include both singular and plural DTO fields.
+        // Studios: include both singular and plural fields.
         Map<String, Studio> studios = new LinkedHashMap<>();
 
         addStudio(studios, source.getStudio());
 
         if (source.getStudios() != null) {
-            for (String name : source.getStudios()) {
-                addStudio(studios, name);
+            for (StudioDTO studioDTO : source.getStudios()) {
+                addStudio(studios, studioDTO);
             }
         }
 
@@ -307,7 +321,7 @@ public class MediaCatalogSyncService {
         addPeople(people, item, source.getWriters(), "WRITER");
 
         if (source.getActors() != null) {
-            for (Actor actor : source.getActors()) {
+            for (ActorDTO actor : source.getActors()) {
                 if (actor == null || !hasText(actor.getName())) {
                     continue;
                 }
@@ -330,13 +344,17 @@ public class MediaCatalogSyncService {
         Map<String, Tag> tags = new LinkedHashMap<>();
 
         if (source.getTags() != null) {
-            for (String name : source.getTags()) {
-                if (hasText(name)) {
-                    tags.put(
-                            normalizeName(name),
-                            getOrCreateTag(name)
-                    );
+            for (TagDTO tagDTO : source.getTags()) {
+                if (tagDTO == null || !hasText(tagDTO.getName())) {
+                    continue;
                 }
+
+                String name = tagDTO.getName().trim();
+
+                tags.put(
+                        normalizeName(name),
+                        getOrCreateTag(name)
+                );
             }
         }
 
@@ -355,23 +373,27 @@ public class MediaCatalogSyncService {
     private void addPeople(
             List<MediaItemPerson> target,
             MediaItem item,
-            List<String> names,
+            List<PersonDTO> peopleDTOs,
             String role
     ) {
 
-        if (names == null) {
+        if (peopleDTOs == null) {
             return;
         }
 
         Map<String, Person> uniquePeople = new LinkedHashMap<>();
 
-        for (String name : names) {
-            if (hasText(name)) {
-                uniquePeople.put(
-                        normalizeName(name),
-                        getOrCreatePerson(name)
-                );
+        for (PersonDTO personDTO : peopleDTOs) {
+            if (personDTO == null || !hasText(personDTO.getName())) {
+                continue;
             }
+
+            String name = personDTO.getName().trim();
+
+            uniquePeople.put(
+                    normalizeName(name),
+                    getOrCreatePerson(name)
+            );
         }
 
         for (Person person : uniquePeople.values()) {
@@ -385,15 +407,19 @@ public class MediaCatalogSyncService {
 
     private void addStudio(
             Map<String, Studio> studios,
-            String name
+            StudioDTO studioDTO
     ) {
 
-        if (hasText(name)) {
-            studios.put(
-                    normalizeName(name),
-                    getOrCreateStudio(name)
-            );
+        if (studioDTO == null || !hasText(studioDTO.getName())) {
+            return;
         }
+
+        String name = studioDTO.getName().trim();
+
+        studios.put(
+                normalizeName(name),
+                getOrCreateStudio(name)
+        );
     }
 
     private Person getOrCreatePerson(String name) {
@@ -480,10 +506,13 @@ public class MediaCatalogSyncService {
 
         for (Path video : videos) {
             String fileName = video.getFileName().toString();
-            String baseName = fileName.substring(
-                    0,
-                    fileName.lastIndexOf('.')
-            );
+            int extensionIndex = fileName.lastIndexOf('.');
+
+            if (extensionIndex <= 0) {
+                continue;
+            }
+
+            String baseName = fileName.substring(0, extensionIndex);
 
             if (baseName.equalsIgnoreCase(folderName)) {
                 return video;

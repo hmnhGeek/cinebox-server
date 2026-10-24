@@ -1,11 +1,15 @@
+
 package com.webvideoplayer.player.services.impl;
 
 import com.webvideoplayer.player.dto.Actor;
+import com.webvideoplayer.player.dto.ActorDTO;
+import com.webvideoplayer.player.dto.GenreDTO;
 import com.webvideoplayer.player.dto.NfoMetadata;
+import com.webvideoplayer.player.dto.PersonDTO;
+import com.webvideoplayer.player.dto.StudioDTO;
+import com.webvideoplayer.player.dto.TagDTO;
 import com.webvideoplayer.player.dto.VideoMetadata;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.core.io.Resource;
-import org.springframework.core.io.UrlResource;
 import org.springframework.stereotype.Service;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
@@ -13,10 +17,10 @@ import org.w3c.dom.NodeList;
 
 import javax.xml.parsers.DocumentBuilderFactory;
 import java.io.IOException;
-import java.net.MalformedURLException;
 import java.nio.file.*;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 @Slf4j
@@ -33,7 +37,10 @@ public class VideoScannerService {
             ".ts"
     );
 
-    public VideoMetadata getVideoMetadata(Path collectionFolder, Path videoFolderPath) {
+    public VideoMetadata getVideoMetadata(
+            Path collectionFolder,
+            Path videoFolderPath
+    ) {
 
         if (!Files.isDirectory(collectionFolder)) {
             throw new IllegalArgumentException(
@@ -71,57 +78,10 @@ public class VideoScannerService {
         }
     }
 
-    public List<VideoMetadata> getVideos(Path collectionFolder) {
-
-        if (!Files.isDirectory(collectionFolder)) {
-            throw new IllegalArgumentException(
-                    "Collection folder does not exist: " + collectionFolder
-            );
-        }
-
-        try {
-            List<VideoMetadata> videos = new ArrayList<>();
-
-            try (DirectoryStream<Path> stream =
-                         Files.newDirectoryStream(collectionFolder)) {
-
-                for (Path videoFolder : stream) {
-
-                    if (!Files.isDirectory(videoFolder)) {
-                        continue;
-                    }
-
-                    Optional<Path> videoFile =
-                            findVideoFile(videoFolder);
-
-                    if (videoFile.isEmpty()) {
-                        continue;
-                    }
-
-                    videos.add(
-                            createVideoMetadata(
-                                    videoFolder,
-                                    videoFile.get()
-                            )
-                    );
-                }
-            }
-
-            return videos;
-
-        } catch (IOException e) {
-            throw new RuntimeException(
-                    "Failed to scan collection folder: " + collectionFolder,
-                    e
-            );
-        }
-    }
-
     private Optional<Path> findVideoFile(Path videoFolder)
             throws IOException {
 
-        String folderName =
-                videoFolder.getFileName().toString();
+        String folderName = videoFolder.getFileName().toString();
 
         try (DirectoryStream<Path> stream =
                      Files.newDirectoryStream(videoFolder)) {
@@ -132,21 +92,14 @@ public class VideoScannerService {
                     continue;
                 }
 
-                String fileName =
-                        file.getFileName().toString();
-
-                String baseName =
-                        removeExtension(fileName);
-
-                String extension =
-                        getExtension(fileName).toLowerCase();
+                String fileName = file.getFileName().toString();
+                String baseName = removeExtension(fileName);
+                String extension = getExtension(fileName).toLowerCase();
 
                 /*
-                 * Video filename should be the same as
-                 * the folder name.
+                 * Video filename should match the folder name.
                  *
                  * Example:
-                 *
                  * Inception/
                  *     Inception.mkv
                  */
@@ -164,24 +117,13 @@ public class VideoScannerService {
     private VideoMetadata createVideoMetadata(
             Path videoFolder,
             Path videoFile
-    ) throws MalformedURLException {
+    ) {
 
-        Path poster =
-                findFile(videoFolder, "poster");
+        Path thumbnail = findFile(videoFolder, "thumbnail");
+        Path nfo = findNfoFile(videoFolder);
 
-        Path thumbnail =
-                findFile(videoFolder, "thumbnail");
+        NfoMetadata nfoMetadata = parseNfo(nfo);
 
-        Path preview =
-                videoFolder.resolve("preview.mp4");
-
-        Path nfo =
-                findNfoFile(videoFolder);
-
-        NfoMetadata nfoMetadata =
-                parseNfo(nfo);
-
-        assert thumbnail != null;
         return VideoMetadata.builder()
                 .title(
                         nfoMetadata.title != null
@@ -190,23 +132,21 @@ public class VideoScannerService {
                 )
                 .originalTitle(nfoMetadata.originalTitle)
                 .sortTitle(nfoMetadata.sortTitle)
-
                 .plot(nfoMetadata.plot)
                 .outline(nfoMetadata.outline)
-
                 .year(nfoMetadata.year)
                 .premiered(nfoMetadata.premiered)
                 .releaseDate(nfoMetadata.releaseDate)
                 .runtime(nfoMetadata.runtime)
 
-                .studio(nfoMetadata.studio)
-                .studios(nfoMetadata.studios)
-
-                .directors(nfoMetadata.directors)
-                .writers(nfoMetadata.writers)
-                .tags(nfoMetadata.tags)
-                .actors(nfoMetadata.actors)
-                .genres(nfoMetadata.genres)
+                // NFO values are names only; database IDs are resolved later.
+                .studio(toStudioDTO(nfoMetadata.studio))
+                .studios(toStudioDTOs(nfoMetadata.studios))
+                .directors(toPersonDTOs(nfoMetadata.directors))
+                .writers(toPersonDTOs(nfoMetadata.writers))
+                .tags(toTagDTOs(nfoMetadata.tags))
+                .actors(toActorDTOs(nfoMetadata.actors))
+                .genres(toGenreDTOs(nfoMetadata.genres))
 
                 .country(nfoMetadata.country)
                 .originalCountry(nfoMetadata.originalCountry)
@@ -223,10 +163,93 @@ public class VideoScannerService {
                 .build();
     }
 
-    private Path findFile(
-            Path folder,
-            String baseName
-    ) {
+    private StudioDTO toStudioDTO(String name) {
+        if (name == null || name.isBlank()) {
+            return null;
+        }
+
+        return StudioDTO.builder()
+                .name(name)
+                .build();
+    }
+
+    private List<StudioDTO> toStudioDTOs(List<String> names) {
+        if (names == null) {
+            return List.of();
+        }
+
+        return names.stream()
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(name -> !name.isEmpty())
+                .map(name -> StudioDTO.builder()
+                        .name(name)
+                        .build())
+                .toList();
+    }
+
+    private List<PersonDTO> toPersonDTOs(List<String> names) {
+        if (names == null) {
+            return List.of();
+        }
+
+        return names.stream()
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(name -> !name.isEmpty())
+                .map(name -> PersonDTO.builder()
+                        .name(name)
+                        .build())
+                .toList();
+    }
+
+    private List<TagDTO> toTagDTOs(List<String> names) {
+        if (names == null) {
+            return List.of();
+        }
+
+        return names.stream()
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(name -> !name.isEmpty())
+                .map(name -> TagDTO.builder()
+                        .name(name)
+                        .build())
+                .toList();
+    }
+
+    private List<GenreDTO> toGenreDTOs(List<String> names) {
+        if (names == null) {
+            return List.of();
+        }
+
+        return names.stream()
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(name -> !name.isEmpty())
+                .map(name -> GenreDTO.builder()
+                        .name(name)
+                        .build())
+                .toList();
+    }
+
+    private List<ActorDTO> toActorDTOs(List<Actor> actors) {
+        if (actors == null) {
+            return List.of();
+        }
+
+        return actors.stream()
+                .filter(Objects::nonNull)
+                .filter(actor -> actor.getName() != null
+                        && !actor.getName().isBlank())
+                .map(actor -> ActorDTO.builder()
+                        .name(actor.getName())
+                        .role(actor.getRole())
+                        .build())
+                .toList();
+    }
+
+    private Path findFile(Path folder, String baseName) {
 
         try (DirectoryStream<Path> stream =
                      Files.newDirectoryStream(folder)) {
@@ -323,7 +346,8 @@ public class VideoScannerService {
         }
 
         try {
-            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+            DocumentBuilderFactory factory =
+                    DocumentBuilderFactory.newInstance();
 
             // Prevent XML external entity attacks.
             factory.setFeature(
@@ -353,6 +377,7 @@ public class VideoScannerService {
             metadata.website = getValue(document, "website");
 
             String year = getValue(document, "year");
+
             if (year != null) {
                 try {
                     metadata.year = Integer.parseInt(year);
@@ -362,6 +387,7 @@ public class VideoScannerService {
             }
 
             String runtime = getValue(document, "runtime");
+
             if (runtime != null) {
                 try {
                     metadata.runtime = Integer.parseInt(runtime);
@@ -376,12 +402,12 @@ public class VideoScannerService {
             metadata.tags = getValues(document, "tag");
             metadata.studios = getValues(document, "studio");
 
-            // Keep compatibility with your existing createVideoMetadata().
             metadata.studio = metadata.studios.isEmpty()
                     ? null
                     : metadata.studios.get(0);
 
-            NodeList actorNodes = document.getElementsByTagName("actor");
+            NodeList actorNodes =
+                    document.getElementsByTagName("actor");
 
             for (int i = 0; i < actorNodes.getLength(); i++) {
                 Element element = (Element) actorNodes.item(i);
