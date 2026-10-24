@@ -22,14 +22,14 @@ public class VideoMetadata {
     private String releaseDate;
     private Integer runtime;
 
-    private String studio;
-    private List<String> studios;
+    private StudioDTO studio;
+    private List<StudioDTO> studios;
 
-    private List<String> directors;
-    private List<String> writers;
-    private List<String> tags;
-    private List<Actor> actors;
-    private List<String> genres;
+    private List<PersonDTO> directors;
+    private List<PersonDTO> writers;
+    private List<TagDTO> tags;
+    private List<ActorDTO> actors;
+    private List<GenreDTO> genres;
 
     private String country;
     private String originalCountry;

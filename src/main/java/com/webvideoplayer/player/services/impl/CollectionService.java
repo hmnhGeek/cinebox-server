@@ -1,8 +1,7 @@
 
 package com.webvideoplayer.player.services.impl;
 
-import com.webvideoplayer.player.dto.CatalogSyncProgress;
-import com.webvideoplayer.player.dto.VideoMetadata;
+import com.webvideoplayer.player.dto.*;
 import com.webvideoplayer.player.entities.Collection;
 import com.webvideoplayer.player.repositories.CollectionRepository;
 import lombok.RequiredArgsConstructor;
@@ -22,7 +21,6 @@ import com.webvideoplayer.player.repositories.MediaItemRepository;
 import com.webvideoplayer.player.repositories.MediaMetadataRepository;
 import com.webvideoplayer.player.repositories.MediaItemPersonRepository;
 import com.webvideoplayer.player.repositories.MediaItemTagRepository;
-import com.webvideoplayer.player.dto.Actor;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.charset.StandardCharsets;
@@ -163,51 +161,84 @@ public class CollectionService {
                 .resolve(item.getRelativePath())
                 .normalize();
 
-        Path videoFolder = videoPath.getParent();
-
         List<MediaItemPerson> people =
                 mediaItemPersonRepository.findByMediaItem_Id(item.getId());
 
         List<MediaItemTag> itemTags =
                 mediaItemTagRepository.findByMediaItem_Id(item.getId());
 
-        List<String> directors = people.stream()
+        // Directors
+        List<PersonDTO> directors = people.stream()
                 .filter(p -> "DIRECTOR".equalsIgnoreCase(p.getRole()))
-                .map(p -> p.getPerson().getName())
+                .map(p -> PersonDTO.builder()
+                        .id(p.getPerson().getId())
+                        .name(p.getPerson().getName())
+                        .build())
                 .distinct()
                 .toList();
 
-        List<String> writers = people.stream()
+        // Writers
+        List<PersonDTO> writers = people.stream()
                 .filter(p -> "WRITER".equalsIgnoreCase(p.getRole()))
-                .map(p -> p.getPerson().getName())
+                .map(p -> PersonDTO.builder()
+                        .id(p.getPerson().getId())
+                        .name(p.getPerson().getName())
+                        .build())
                 .distinct()
                 .toList();
 
-        List<Actor> actors = people.stream()
+        // Actors
+        List<ActorDTO> actors = people.stream()
                 .filter(p -> "ACTOR".equalsIgnoreCase(p.getRole()))
-                .map(p -> Actor.builder()
+                .map(p -> ActorDTO.builder()
+                        .id(p.getPerson().getId())
                         .name(p.getPerson().getName())
                         .role(p.getCharacterName())
                         .build())
-                .toList();
-
-        List<String> tags = itemTags.stream()
-                .map(t -> t.getTag().getName())
                 .distinct()
                 .toList();
 
-        List<String> genres = metadata == null
-                ? List.of()
-                : metadata.getGenres().stream()
-                .map(genre -> genre.getName())
-                .sorted(String.CASE_INSENSITIVE_ORDER)
+        // Tags
+        List<TagDTO> tags = itemTags.stream()
+                .map(t -> TagDTO.builder()
+                        .id(t.getTag().getId())
+                        .name(t.getTag().getName())
+                        .build())
+                .distinct()
+                .sorted(Comparator.comparing(
+                        TagDTO::getName,
+                        String.CASE_INSENSITIVE_ORDER
+                ))
                 .toList();
 
-        List<String> studios = metadata == null
+        // Genres
+        List<GenreDTO> genres = metadata == null
+                ? List.of()
+                : metadata.getGenres().stream()
+                .map(genre -> GenreDTO.builder()
+                        .id(genre.getId())
+                        .name(genre.getName())
+                        .build())
+                .distinct()
+                .sorted(Comparator.comparing(
+                        GenreDTO::getName,
+                        String.CASE_INSENSITIVE_ORDER
+                ))
+                .toList();
+
+        // Studios
+        List<StudioDTO> studios = metadata == null
                 ? List.of()
                 : metadata.getStudios().stream()
-                .map(studio -> studio.getName())
-                .sorted(String.CASE_INSENSITIVE_ORDER)
+                .map(studio -> StudioDTO.builder()
+                        .id(studio.getId())
+                        .name(studio.getName())
+                        .build())
+                .distinct()
+                .sorted(Comparator.comparing(
+                        StudioDTO::getName,
+                        String.CASE_INSENSITIVE_ORDER
+                ))
                 .toList();
 
         String thumbnailUrl =
@@ -224,18 +255,24 @@ public class CollectionService {
                         ? null : metadata.getOriginalTitle())
                 .sortTitle(metadata == null
                         ? null : metadata.getSortTitle())
-                .plot(metadata == null ? null : metadata.getPlot())
-                .outline(metadata == null ? null : metadata.getOutline())
-                .year(metadata == null ? null : metadata.getYear())
-                .premiered(metadata == null ? null : metadata.getPremiered())
+                .plot(metadata == null
+                        ? null : metadata.getPlot())
+                .outline(metadata == null
+                        ? null : metadata.getOutline())
+                .year(metadata == null
+                        ? null : metadata.getYear())
+                .premiered(metadata == null
+                        ? null : metadata.getPremiered())
                 .releaseDate(metadata == null
                         ? null : metadata.getReleaseDate())
-                .runtime(metadata != null && metadata.getRuntimeMinutes() != null
+                .runtime(metadata != null
+                        && metadata.getRuntimeMinutes() != null
                         ? metadata.getRuntimeMinutes()
                         : item.getDurationSeconds() == null
                         ? null
                         : (int) Math.round(
-                        item.getDurationSeconds() / 60.0))
+                        item.getDurationSeconds() / 60.0
+                ))
                 .studio(studios.isEmpty() ? null : studios.getFirst())
                 .studios(studios)
                 .directors(directors)
@@ -243,12 +280,16 @@ public class CollectionService {
                 .actors(actors)
                 .genres(genres)
                 .tags(tags)
-                .country(metadata == null ? null : metadata.getCountry())
+                .country(metadata == null
+                        ? null : metadata.getCountry())
                 .originalCountry(metadata == null
                         ? null : metadata.getOriginalCountry())
-                .language(metadata == null ? null : metadata.getLanguage())
-                .mpaa(metadata == null ? null : metadata.getMpaa())
-                .website(metadata == null ? null : metadata.getWebsite())
+                .language(metadata == null
+                        ? null : metadata.getLanguage())
+                .mpaa(metadata == null
+                        ? null : metadata.getMpaa())
+                .website(metadata == null
+                        ? null : metadata.getWebsite())
                 .thumbnailUrl(thumbnailUrl)
                 .build();
     }
