@@ -1,4 +1,3 @@
-
 package com.webvideoplayer.player.services.impl;
 
 import com.webvideoplayer.player.dto.ActorDTO;
@@ -168,6 +167,11 @@ public class MediaCatalogSyncService {
                                 collectionPath,
                                 movieFolder
                         );
+
+                // Associate the scanned metadata with its owning collection.
+                if (metadata != null) {
+                    metadata.setCollectionId(collection.getId());
+                }
 
                 String title = resolveTitle(metadata, movieFolder);
 

@@ -1,4 +1,3 @@
-
 package com.webvideoplayer.player.services.impl;
 
 import com.webvideoplayer.player.dto.*;
@@ -51,7 +50,6 @@ public class CollectionService {
     private final MediaMetadataRepository mediaMetadataRepository;
     private final MediaItemPersonRepository mediaItemPersonRepository;
     private final MediaItemTagRepository mediaItemTagRepository;
-
 
     public Collection addCollection(
             String title,
@@ -250,6 +248,7 @@ public class CollectionService {
 
         return VideoMetadata.builder()
                 .id(item.getId())
+                .collectionId(item.getCollection().getId())
                 .title(item.getTitle())
                 .originalTitle(metadata == null
                         ? null : metadata.getOriginalTitle())
@@ -314,7 +313,6 @@ public class CollectionService {
         }
     }
 
-
     /*
      * 4. Get all collections
      */
@@ -354,7 +352,6 @@ public class CollectionService {
         );
     }
 
-
     public void generatePreviews(String collectionId) {
 
         Collection collection = getCollectionById(collectionId);
@@ -370,7 +367,6 @@ public class CollectionService {
                 collectionId
         );
     }
-
 
     /*
      * 7. Get preview generation progress
@@ -583,6 +579,7 @@ public class CollectionService {
 
     @Transactional(readOnly = true)
     public VideoMetadata getVideoMetadata(String mediaItemId) {
+
         MediaItem item = mediaItemRepository.findById(mediaItemId)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND,
