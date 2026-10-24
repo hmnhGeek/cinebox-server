@@ -86,4 +86,123 @@ public interface MediaItemRepository
             @Param("collectionIds") List<String> collectionIds,
             Pageable pageable
     );
+
+    @Query(
+            value = """
+        SELECT mi
+        FROM MediaItem mi
+        WHERE mi.collection.id IN :collectionIds
+          AND (
+              LOWER(mi.title) LIKE LOWER(CONCAT('%', :query, '%'))
+
+              OR EXISTS (
+                  SELECT md.id
+                  FROM MediaMetadata md
+                  WHERE md.mediaItem = mi
+                    AND (
+                        LOWER(COALESCE(md.originalTitle, ''))
+                            LIKE LOWER(CONCAT('%', :query, '%'))
+                        OR LOWER(COALESCE(md.sortTitle, ''))
+                            LIKE LOWER(CONCAT('%', :query, '%'))
+                    )
+              )
+
+              OR EXISTS (
+                  SELECT mit.id
+                  FROM MediaItemTag mit
+                  WHERE mit.mediaItem = mi
+                    AND LOWER(mit.tag.name)
+                        LIKE LOWER(CONCAT('%', :query, '%'))
+              )
+
+              OR EXISTS (
+                  SELECT md2.id
+                  FROM MediaMetadata md2
+                  JOIN md2.genres g
+                  WHERE md2.mediaItem = mi
+                    AND LOWER(g.name)
+                        LIKE LOWER(CONCAT('%', :query, '%'))
+              )
+
+              OR EXISTS (
+                  SELECT mip.id
+                  FROM MediaItemPerson mip
+                  WHERE mip.mediaItem = mi
+                    AND UPPER(mip.role) = 'ACTOR'
+                    AND LOWER(mip.person.name)
+                        LIKE LOWER(CONCAT('%', :query, '%'))
+              )
+
+              OR EXISTS (
+                  SELECT md3.id
+                  FROM MediaMetadata md3
+                  JOIN md3.studios s
+                  WHERE md3.mediaItem = mi
+                    AND LOWER(s.name)
+                        LIKE LOWER(CONCAT('%', :query, '%'))
+              )
+          )
+        ORDER BY mi.title ASC
+        """,
+            countQuery = """
+        SELECT COUNT(DISTINCT mi.id)
+        FROM MediaItem mi
+        WHERE mi.collection.id IN :collectionIds
+          AND (
+              LOWER(mi.title) LIKE LOWER(CONCAT('%', :query, '%'))
+
+              OR EXISTS (
+                  SELECT md.id
+                  FROM MediaMetadata md
+                  WHERE md.mediaItem = mi
+                    AND (
+                        LOWER(COALESCE(md.originalTitle, ''))
+                            LIKE LOWER(CONCAT('%', :query, '%'))
+                        OR LOWER(COALESCE(md.sortTitle, ''))
+                            LIKE LOWER(CONCAT('%', :query, '%'))
+                    )
+              )
+
+              OR EXISTS (
+                  SELECT mit.id
+                  FROM MediaItemTag mit
+                  WHERE mit.mediaItem = mi
+                    AND LOWER(mit.tag.name)
+                        LIKE LOWER(CONCAT('%', :query, '%'))
+              )
+
+              OR EXISTS (
+                  SELECT md2.id
+                  FROM MediaMetadata md2
+                  JOIN md2.genres g
+                  WHERE md2.mediaItem = mi
+                    AND LOWER(g.name)
+                        LIKE LOWER(CONCAT('%', :query, '%'))
+              )
+
+              OR EXISTS (
+                  SELECT mip.id
+                  FROM MediaItemPerson mip
+                  WHERE mip.mediaItem = mi
+                    AND UPPER(mip.role) = 'ACTOR'
+                    AND LOWER(mip.person.name)
+                        LIKE LOWER(CONCAT('%', :query, '%'))
+              )
+
+              OR EXISTS (
+                  SELECT md3.id
+                  FROM MediaMetadata md3
+                  JOIN md3.studios s
+                  WHERE md3.mediaItem = mi
+                    AND LOWER(s.name)
+                        LIKE LOWER(CONCAT('%', :query, '%'))
+              )
+          )
+        """
+    )
+    Page<MediaItem> searchVideos(
+            @Param("query") String query,
+            @Param("collectionIds") List<String> collectionIds,
+            Pageable pageable
+    );
 }
