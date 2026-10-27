@@ -1,3 +1,4 @@
+
 package com.webvideoplayer.player.controllers;
 
 import com.webvideoplayer.player.dto.VideoMetadata;
@@ -21,32 +22,40 @@ public class DiscoveryController {
     @GetMapping("/tags/{tagId}/videos")
     public Page<VideoMetadata> getVideosByTag(
             @PathVariable String tagId,
-            @PageableDefault(size = 24) Pageable pageable) {
-
+            @PageableDefault(size = 24) Pageable pageable
+    ) {
         return discoveryService.getVideosByTag(tagId, pageable);
     }
 
     @GetMapping("/genres/{genreId}/videos")
     public Page<VideoMetadata> getVideosByGenre(
             @PathVariable String genreId,
-            @PageableDefault(size = 24) Pageable pageable) {
-
+            @PageableDefault(size = 24) Pageable pageable
+    ) {
         return discoveryService.getVideosByGenre(genreId, pageable);
     }
 
     @GetMapping("/actors/{personId}/videos")
     public Page<VideoMetadata> getVideosByActor(
             @PathVariable String personId,
-            @PageableDefault(size = 24) Pageable pageable) {
-
+            @PageableDefault(size = 24) Pageable pageable
+    ) {
         return discoveryService.getVideosByActor(personId, pageable);
+    }
+
+    @GetMapping("/directors/{personId}/videos")
+    public Page<VideoMetadata> getVideosByDirector(
+            @PathVariable String personId,
+            @PageableDefault(size = 24) Pageable pageable
+    ) {
+        return discoveryService.getVideosByDirector(personId, pageable);
     }
 
     @GetMapping("/studios/{studioId}/videos")
     public Page<VideoMetadata> getVideosByStudio(
             @PathVariable String studioId,
-            @PageableDefault(size = 24) Pageable pageable) {
-
+            @PageableDefault(size = 24) Pageable pageable
+    ) {
         return discoveryService.getVideosByStudio(studioId, pageable);
     }
 }
