@@ -1,3 +1,4 @@
+
 package com.webvideoplayer.player.services.impl;
 
 import com.webvideoplayer.player.dto.*;
@@ -8,10 +9,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
-import org.springframework.http.HttpStatus;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -169,7 +170,8 @@ public class SearchService {
 
         if (metadata.getTags() != null &&
                 metadata.getTags().stream()
-                        .anyMatch(tag -> contains(tag.getName(), term))) {
+                        .anyMatch(tag ->
+                                contains(tag.getName(), term))) {
             matchedBy.add("TAG");
         }
 
@@ -185,6 +187,13 @@ public class SearchService {
                         .anyMatch(actor ->
                                 contains(actor.getName(), term))) {
             matchedBy.add("ACTOR");
+        }
+
+        if (metadata.getDirectors() != null &&
+                metadata.getDirectors().stream()
+                        .anyMatch(director ->
+                                contains(director.getName(), term))) {
+            matchedBy.add("DIRECTOR");
         }
 
         if (metadata.getStudios() != null &&

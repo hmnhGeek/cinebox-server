@@ -1,3 +1,4 @@
+
 package com.webvideoplayer.player.services.impl;
 
 import com.webvideoplayer.player.dto.VideoMetadata;
@@ -22,9 +23,6 @@ public class DiscoveryService {
     private final MediaItemRepository mediaItemRepository;
     private final CollectionService collectionService;
 
-    /**
-     * Returns videos associated with a tag across all available collections.
-     */
     public Page<VideoMetadata> getVideosByTag(
             String tagId,
             Pageable pageable
@@ -35,19 +33,15 @@ public class DiscoveryService {
             return Page.empty(pageable);
         }
 
-        Page<MediaItem> videos =
-                mediaItemRepository.findVideosByTag(
-                        tagId,
-                        collectionIds,
-                        pageable
-                );
+        Page<MediaItem> videos = mediaItemRepository.findVideosByTag(
+                tagId,
+                collectionIds,
+                pageable
+        );
 
         return mapToVideoMetadata(videos);
     }
 
-    /**
-     * Returns videos associated with a genre across all available collections.
-     */
     public Page<VideoMetadata> getVideosByGenre(
             String genreId,
             Pageable pageable
@@ -58,19 +52,15 @@ public class DiscoveryService {
             return Page.empty(pageable);
         }
 
-        Page<MediaItem> videos =
-                mediaItemRepository.findVideosByGenre(
-                        genreId,
-                        collectionIds,
-                        pageable
-                );
+        Page<MediaItem> videos = mediaItemRepository.findVideosByGenre(
+                genreId,
+                collectionIds,
+                pageable
+        );
 
         return mapToVideoMetadata(videos);
     }
 
-    /**
-     * Returns videos featuring an actor across all available collections.
-     */
     public Page<VideoMetadata> getVideosByActor(
             String personId,
             Pageable pageable
@@ -81,19 +71,34 @@ public class DiscoveryService {
             return Page.empty(pageable);
         }
 
-        Page<MediaItem> videos =
-                mediaItemRepository.findVideosByActor(
-                        personId,
-                        collectionIds,
-                        pageable
-                );
+        Page<MediaItem> videos = mediaItemRepository.findVideosByActor(
+                personId,
+                collectionIds,
+                pageable
+        );
 
         return mapToVideoMetadata(videos);
     }
 
-    /**
-     * Returns videos associated with a studio across all available collections.
-     */
+    public Page<VideoMetadata> getVideosByDirector(
+            String personId,
+            Pageable pageable
+    ) {
+        List<String> collectionIds = getAvailableCollectionIds();
+
+        if (collectionIds.isEmpty()) {
+            return Page.empty(pageable);
+        }
+
+        Page<MediaItem> videos = mediaItemRepository.findVideosByDirector(
+                personId,
+                collectionIds,
+                pageable
+        );
+
+        return mapToVideoMetadata(videos);
+    }
+
     public Page<VideoMetadata> getVideosByStudio(
             String studioId,
             Pageable pageable
@@ -104,29 +109,21 @@ public class DiscoveryService {
             return Page.empty(pageable);
         }
 
-        Page<MediaItem> videos =
-                mediaItemRepository.findVideosByStudio(
-                        studioId,
-                        collectionIds,
-                        pageable
-                );
+        Page<MediaItem> videos = mediaItemRepository.findVideosByStudio(
+                studioId,
+                collectionIds,
+                pageable
+        );
 
         return mapToVideoMetadata(videos);
     }
 
-    /**
-     * Converts MediaItem results into the VideoMetadata DTO already used
-     * by CineBox's existing collection APIs.
-     */
     private Page<VideoMetadata> mapToVideoMetadata(
             Page<MediaItem> videos
     ) {
         return videos.map(item -> {
             Collection collection = item.getCollection();
-
-            Path collectionPath = Paths.get(
-                    collection.getFolder()
-            );
+            Path collectionPath = Paths.get(collection.getFolder());
 
             return collectionService.mapToVideoMetadata(
                     item,
@@ -135,11 +132,6 @@ public class DiscoveryService {
         });
     }
 
-    /**
-     * Uses CollectionService's existing availability filtering.
-     * Unavailable collection records remain in the database but are
-     * excluded from global discovery until their folders are accessible.
-     */
     private List<String> getAvailableCollectionIds() {
         return collectionService.getAllCollections()
                 .stream()
