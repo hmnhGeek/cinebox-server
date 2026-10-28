@@ -264,4 +264,39 @@ public interface MediaItemRepository extends JpaRepository<MediaItem, String> {
             @Param("collectionIds") List<String> collectionIds,
             Pageable pageable
     );
+
+
+    /**
+     * Returns distinct actors whose names contain the supplied query,
+     * limited to actors appearing in the supplied collections.
+     */
+    @Query(
+            value = """
+            SELECT DISTINCT p
+            FROM MediaItemPerson mip
+            JOIN mip.person p
+            JOIN mip.mediaItem mi
+            WHERE UPPER(mip.role) = 'ACTOR'
+              AND mi.collection.id IN :collectionIds
+              AND LOWER(COALESCE(p.name, ''))
+                  LIKE LOWER(CONCAT('%', :query, '%'))
+            ORDER BY LOWER(COALESCE(p.name, '')) ASC, p.id ASC
+            """,
+            countQuery = """
+            SELECT COUNT(DISTINCT p.id)
+            FROM MediaItemPerson mip
+            JOIN mip.person p
+            JOIN mip.mediaItem mi
+            WHERE UPPER(mip.role) = 'ACTOR'
+              AND mi.collection.id IN :collectionIds
+              AND LOWER(COALESCE(p.name, ''))
+                  LIKE LOWER(CONCAT('%', :query, '%'))
+            """
+    )
+    Page<Person> searchDistinctActorsByNameInCollections(
+            @Param("query") String query,
+            @Param("collectionIds") List<String> collectionIds,
+            Pageable pageable
+    );
+
 }

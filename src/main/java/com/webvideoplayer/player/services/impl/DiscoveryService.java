@@ -5,6 +5,7 @@ import com.webvideoplayer.player.dto.ActorBrowseDTO;
 import com.webvideoplayer.player.dto.VideoMetadata;
 import com.webvideoplayer.player.entities.Collection;
 import com.webvideoplayer.player.entities.MediaItem;
+import com.webvideoplayer.player.entities.Person;
 import com.webvideoplayer.player.repositories.MediaItemRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -25,24 +26,52 @@ public class DiscoveryService {
     private final CollectionService collectionService;
 
     /**
-     * Returns distinct actors associated with videos in available collections.
+     * Returns all distinct actors associated with available collections.
      */
     public Page<ActorBrowseDTO> getAllActors(Pageable pageable) {
+        return getAllActors(null, pageable);
+    }
+
+    /**
+     * Returns distinct actors, optionally filtered by name.
+     *
+     * The repository query performs case-insensitive matching and
+     * deterministic alphabetical ordering.
+     */
+    public Page<ActorBrowseDTO> getAllActors(
+            String query,
+            Pageable pageable
+    ) {
         List<String> collectionIds = getAvailableCollectionIds();
 
         if (collectionIds.isEmpty()) {
             return Page.empty(pageable);
         }
 
-        return mediaItemRepository
-                .findDistinctActorsInCollections(collectionIds, pageable)
-                .map(person -> new ActorBrowseDTO(
-                        person.getId(),
-                        person.getName(),
-                        "/api/v1/people/"
-                                + person.getId()
-                                + "/profile/image"
-                ));
+        Page<Person> people;
+
+        if (query != null && !query.isBlank()) {
+            people = mediaItemRepository
+                    .searchDistinctActorsByNameInCollections(
+                            query.trim(),
+                            collectionIds,
+                            pageable
+                    );
+        } else {
+            people = mediaItemRepository
+                    .findDistinctActorsInCollections(
+                            collectionIds,
+                            pageable
+                    );
+        }
+
+        return people.map(person -> new ActorBrowseDTO(
+                person.getId(),
+                person.getName(),
+                "/api/v1/people/"
+                        + person.getId()
+                        + "/profile/image"
+        ));
     }
 
     public Page<VideoMetadata> getVideosByTag(

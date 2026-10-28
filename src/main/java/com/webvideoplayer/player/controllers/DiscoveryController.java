@@ -11,6 +11,7 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -23,14 +24,16 @@ public class DiscoveryController {
     /**
      * Returns a paginated list of distinct actors across available collections.
      *
-     * Example:
+     * Examples:
      * GET /api/v1/discovery/actors?page=0&size=30
+     * GET /api/v1/discovery/actors?q=tom&page=0&size=30
      */
     @GetMapping("/actors")
     public Page<ActorBrowseDTO> getAllActors(
+            @RequestParam(required = false) String q,
             @PageableDefault(size = 30) Pageable pageable
     ) {
-        return discoveryService.getAllActors(pageable);
+        return discoveryService.getAllActors(q, pageable);
     }
 
     @GetMapping("/tags/{tagId}/videos")
