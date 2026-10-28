@@ -1,6 +1,7 @@
 
 package com.webvideoplayer.player.services.impl;
 
+import com.webvideoplayer.player.dto.ActorBrowseDTO;
 import com.webvideoplayer.player.dto.VideoMetadata;
 import com.webvideoplayer.player.entities.Collection;
 import com.webvideoplayer.player.entities.MediaItem;
@@ -22,6 +23,27 @@ public class DiscoveryService {
 
     private final MediaItemRepository mediaItemRepository;
     private final CollectionService collectionService;
+
+    /**
+     * Returns distinct actors associated with videos in available collections.
+     */
+    public Page<ActorBrowseDTO> getAllActors(Pageable pageable) {
+        List<String> collectionIds = getAvailableCollectionIds();
+
+        if (collectionIds.isEmpty()) {
+            return Page.empty(pageable);
+        }
+
+        return mediaItemRepository
+                .findDistinctActorsInCollections(collectionIds, pageable)
+                .map(person -> new ActorBrowseDTO(
+                        person.getId(),
+                        person.getName(),
+                        "/api/v1/people/"
+                                + person.getId()
+                                + "/profile/image"
+                ));
+    }
 
     public Page<VideoMetadata> getVideosByTag(
             String tagId,

@@ -1,6 +1,7 @@
 
 package com.webvideoplayer.player.controllers;
 
+import com.webvideoplayer.player.dto.ActorBrowseDTO;
 import com.webvideoplayer.player.dto.VideoMetadata;
 import com.webvideoplayer.player.services.impl.DiscoveryService;
 import lombok.RequiredArgsConstructor;
@@ -18,6 +19,19 @@ import org.springframework.web.bind.annotation.RestController;
 public class DiscoveryController {
 
     private final DiscoveryService discoveryService;
+
+    /**
+     * Returns a paginated list of distinct actors across available collections.
+     *
+     * Example:
+     * GET /api/v1/discovery/actors?page=0&size=30
+     */
+    @GetMapping("/actors")
+    public Page<ActorBrowseDTO> getAllActors(
+            @PageableDefault(size = 30) Pageable pageable
+    ) {
+        return discoveryService.getAllActors(pageable);
+    }
 
     @GetMapping("/tags/{tagId}/videos")
     public Page<VideoMetadata> getVideosByTag(

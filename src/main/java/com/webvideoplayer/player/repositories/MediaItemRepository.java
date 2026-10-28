@@ -2,6 +2,7 @@
 package com.webvideoplayer.player.repositories;
 
 import com.webvideoplayer.player.entities.MediaItem;
+import com.webvideoplayer.player.entities.Person;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -23,6 +24,34 @@ public interface MediaItemRepository extends JpaRepository<MediaItem, String> {
     boolean existsByCollection_IdAndRelativePath(
             String collectionId,
             String relativePath
+    );
+
+    /**
+     * Returns distinct actors appearing in the supplied collections.
+     * Results are sorted deterministically by name and then ID.
+     */
+    @Query(
+            value = """
+            SELECT DISTINCT p
+            FROM MediaItemPerson mip
+            JOIN mip.person p
+            JOIN mip.mediaItem mi
+            WHERE UPPER(mip.role) = 'ACTOR'
+              AND mi.collection.id IN :collectionIds
+            ORDER BY LOWER(COALESCE(p.name, '')) ASC, p.id ASC
+            """,
+            countQuery = """
+            SELECT COUNT(DISTINCT p.id)
+            FROM MediaItemPerson mip
+            JOIN mip.person p
+            JOIN mip.mediaItem mi
+            WHERE UPPER(mip.role) = 'ACTOR'
+              AND mi.collection.id IN :collectionIds
+            """
+    )
+    Page<Person> findDistinctActorsInCollections(
+            @Param("collectionIds") List<String> collectionIds,
+            Pageable pageable
     );
 
     @Query("""
