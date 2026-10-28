@@ -158,7 +158,7 @@ public class PersonProfileStorageService {
             validatePersonId(personId);
 
             if (!filename.matches(
-                    "(profile|hero)\\.(jpg|png|gif)")) {
+                    "(profile|hero)\\.(jpg|png|gif|webp)")) {
                 throw new ResponseStatusException(
                         HttpStatus.NOT_FOUND,
                         "Profile image not found");
@@ -304,15 +304,17 @@ public class PersonProfileStorageService {
                     || image.getHeight() > MAX_IMAGE_DIMENSION) {
                 throw new ResponseStatusException(
                         HttpStatus.BAD_REQUEST,
-                        "Upload a valid JPEG, PNG, or GIF image");
+                        "Upload a valid JPEG, PNG, GIF, or WebP image");
             }
 
+            // JPEG
             if (matches(bytes, new byte[]{
                     (byte) 0xFF, (byte) 0xD8, (byte) 0xFF
             })) {
                 return "jpg";
             }
 
+            // PNG
             if (matches(bytes, new byte[]{
                     (byte) 0x89, 0x50, 0x4E, 0x47,
                     0x0D, 0x0A, 0x1A, 0x0A
@@ -320,6 +322,7 @@ public class PersonProfileStorageService {
                 return "png";
             }
 
+            // GIF
             if (bytes.length >= 6) {
                 String signature = new String(
                         bytes,
@@ -333,9 +336,22 @@ public class PersonProfileStorageService {
                 }
             }
 
+            // WebP: RIFF container followed by WEBP signature
+            if (bytes.length >= 12
+                    && bytes[0] == 'R'
+                    && bytes[1] == 'I'
+                    && bytes[2] == 'F'
+                    && bytes[3] == 'F'
+                    && bytes[8] == 'W'
+                    && bytes[9] == 'E'
+                    && bytes[10] == 'B'
+                    && bytes[11] == 'P') {
+                return "webp";
+            }
+
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
-                    "Only JPEG, PNG, and GIF images are supported");
+                    "Only JPEG, PNG, GIF, and WebP images are supported");
 
         } catch (ResponseStatusException ex) {
             throw ex;

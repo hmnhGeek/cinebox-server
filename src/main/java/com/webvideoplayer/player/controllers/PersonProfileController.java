@@ -1,4 +1,3 @@
-
 package com.webvideoplayer.player.controllers;
 
 import com.webvideoplayer.player.dto.PersonProfileDTO;
@@ -51,13 +50,15 @@ public class PersonProfileController {
     @GetMapping("/image")
     public ResponseEntity<Resource> getProfileImage(
             @PathVariable String personId) {
-        return imageResponse(personProfileService.getImagePath(personId, "profile"));
+        return imageResponse(
+                personProfileService.getImagePath(personId, "profile"));
     }
 
     @GetMapping("/hero-image")
     public ResponseEntity<Resource> getHeroImage(
             @PathVariable String personId) {
-        return imageResponse(personProfileService.getImagePath(personId, "hero"));
+        return imageResponse(
+                personProfileService.getImagePath(personId, "hero"));
     }
 
     private ResponseEntity<Resource> imageResponse(Path path) {
@@ -68,6 +69,8 @@ public class PersonProfileController {
             mediaType = MediaType.IMAGE_PNG;
         } else if (filename.endsWith(".gif")) {
             mediaType = MediaType.IMAGE_GIF;
+        } else if (filename.endsWith(".webp")) {
+            mediaType = MediaType.parseMediaType("image/webp");
         } else {
             mediaType = MediaType.IMAGE_JPEG;
         }
