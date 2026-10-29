@@ -29,17 +29,19 @@ public class DiscoveryService {
      * Returns all distinct actors associated with available collections.
      */
     public Page<ActorBrowseDTO> getAllActors(Pageable pageable) {
-        return getAllActors(null, pageable);
+        return getAllActors(null, false, pageable);
     }
 
     /**
-     * Returns distinct actors, optionally filtered by name.
+     * Returns distinct actors, optionally filtered by name and
+     * the presence of a stored profile-image path.
      *
-     * The repository query performs case-insensitive matching and
-     * deterministic alphabetical ordering.
+     * Filtering is performed by the repository before pagination,
+     * ensuring that page totals reflect the applied filters.
      */
     public Page<ActorBrowseDTO> getAllActors(
             String query,
+            boolean hasProfileImage,
             Pageable pageable
     ) {
         List<String> collectionIds = getAvailableCollectionIds();
@@ -48,12 +50,30 @@ public class DiscoveryService {
             return Page.empty(pageable);
         }
 
+        boolean hasQuery = query != null && !query.isBlank();
+        String normalizedQuery = hasQuery ? query.trim() : null;
+
         Page<Person> people;
 
-        if (query != null && !query.isBlank()) {
+        if (hasProfileImage) {
+            if (hasQuery) {
+                people = mediaItemRepository
+                        .searchDistinctActorsWithProfileImageByNameInCollections(
+                                normalizedQuery,
+                                collectionIds,
+                                pageable
+                        );
+            } else {
+                people = mediaItemRepository
+                        .findDistinctActorsWithProfileImageInCollections(
+                                collectionIds,
+                                pageable
+                        );
+            }
+        } else if (hasQuery) {
             people = mediaItemRepository
                     .searchDistinctActorsByNameInCollections(
-                            query.trim(),
+                            normalizedQuery,
                             collectionIds,
                             pageable
                     );

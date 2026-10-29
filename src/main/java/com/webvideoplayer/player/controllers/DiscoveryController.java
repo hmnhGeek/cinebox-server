@@ -22,18 +22,25 @@ public class DiscoveryController {
     private final DiscoveryService discoveryService;
 
     /**
-     * Returns a paginated list of distinct actors across available collections.
+     * Returns distinct actors across available collections.
      *
      * Examples:
      * GET /api/v1/discovery/actors?page=0&size=30
      * GET /api/v1/discovery/actors?q=tom&page=0&size=30
+     * GET /api/v1/discovery/actors?hasProfileImage=true&page=0&size=30
+     * GET /api/v1/discovery/actors?q=tom&hasProfileImage=true
      */
     @GetMapping("/actors")
     public Page<ActorBrowseDTO> getAllActors(
             @RequestParam(required = false) String q,
+            @RequestParam(defaultValue = "false") boolean hasProfileImage,
             @PageableDefault(size = 30) Pageable pageable
     ) {
-        return discoveryService.getAllActors(q, pageable);
+        return discoveryService.getAllActors(
+                q,
+                hasProfileImage,
+                pageable
+        );
     }
 
     @GetMapping("/tags/{tagId}/videos")
