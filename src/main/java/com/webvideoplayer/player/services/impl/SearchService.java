@@ -4,6 +4,7 @@ package com.webvideoplayer.player.services.impl;
 import com.webvideoplayer.player.dto.*;
 import com.webvideoplayer.player.entities.Collection;
 import com.webvideoplayer.player.entities.MediaItem;
+import com.webvideoplayer.player.entities.Person;
 import com.webvideoplayer.player.repositories.MediaItemRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -27,6 +28,7 @@ public class SearchService {
 
     private static final int DEFAULT_SUGGESTION_LIMIT = 8;
     private static final int MAX_SUGGESTION_LIMIT = 12;
+    private static final int MAX_ACTOR_SUGGESTIONS = 4;
 
     private final MediaItemRepository mediaItemRepository;
     private final CollectionService collectionService;
@@ -54,19 +56,40 @@ public class SearchService {
             return new SearchSuggestionsResponse(
                     normalizedQuery,
                     List.of(),
+                    List.of(),
                     false
             );
         }
 
-        Page<MediaItem> page = mediaItemRepository.searchVideos(
+        // Find matching actors.
+        Page<Person> actorPage =
+                mediaItemRepository.searchDistinctActorsByNameInCollections(
+                        normalizedQuery,
+                        collectionIds,
+                        PageRequest.of(0, MAX_ACTOR_SUGGESTIONS)
+                );
+
+        List<ActorBrowseDTO> actors = actorPage.getContent()
+                .stream()
+                .map(person -> new ActorBrowseDTO(
+                        person.getId(),
+                        person.getName(),
+                        "/api/v1/people/"
+                                + person.getId()
+                                + "/profile/image"
+                ))
+                .toList();
+
+        // Find matching videos using the existing search query.
+        Page<MediaItem> videoPage = mediaItemRepository.searchVideos(
                 normalizedQuery,
                 collectionIds,
                 PageRequest.of(0, limit + 1)
         );
 
-        boolean hasMore = page.getContent().size() > limit;
+        boolean hasMore = videoPage.getContent().size() > limit;
 
-        List<SearchSuggestionItem> results = page.getContent()
+        List<SearchSuggestionItem> results = videoPage.getContent()
                 .stream()
                 .limit(limit)
                 .map(item -> toSuggestion(item, normalizedQuery))
@@ -74,6 +97,7 @@ public class SearchService {
 
         return new SearchSuggestionsResponse(
                 normalizedQuery,
+                actors,
                 results,
                 hasMore
         );

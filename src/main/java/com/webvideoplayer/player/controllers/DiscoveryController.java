@@ -1,6 +1,7 @@
 
 package com.webvideoplayer.player.controllers;
 
+import com.webvideoplayer.player.dto.ActorBrowseDTO;
 import com.webvideoplayer.player.dto.VideoMetadata;
 import com.webvideoplayer.player.services.impl.DiscoveryService;
 import lombok.RequiredArgsConstructor;
@@ -10,6 +11,7 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -18,6 +20,28 @@ import org.springframework.web.bind.annotation.RestController;
 public class DiscoveryController {
 
     private final DiscoveryService discoveryService;
+
+    /**
+     * Returns distinct actors across available collections.
+     *
+     * Examples:
+     * GET /api/v1/discovery/actors?page=0&size=30
+     * GET /api/v1/discovery/actors?q=tom&page=0&size=30
+     * GET /api/v1/discovery/actors?hasProfileImage=true&page=0&size=30
+     * GET /api/v1/discovery/actors?q=tom&hasProfileImage=true
+     */
+    @GetMapping("/actors")
+    public Page<ActorBrowseDTO> getAllActors(
+            @RequestParam(required = false) String q,
+            @RequestParam(defaultValue = "false") boolean hasProfileImage,
+            @PageableDefault(size = 30) Pageable pageable
+    ) {
+        return discoveryService.getAllActors(
+                q,
+                hasProfileImage,
+                pageable
+        );
+    }
 
     @GetMapping("/tags/{tagId}/videos")
     public Page<VideoMetadata> getVideosByTag(
