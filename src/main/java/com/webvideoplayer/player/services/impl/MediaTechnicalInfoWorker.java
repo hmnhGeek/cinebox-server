@@ -8,6 +8,7 @@ import com.webvideoplayer.player.repositories.MediaItemRepository;
 import com.webvideoplayer.player.repositories.MediaTechnicalInfoRepository;
 import com.webvideoplayer.player.utils.MediaFilePathResolver;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
@@ -17,6 +18,7 @@ import java.time.Instant;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class MediaTechnicalInfoWorker {
 
     private final MediaItemRepository mediaItemRepository;
@@ -43,6 +45,7 @@ public class MediaTechnicalInfoWorker {
 
             info.setStatus(TechnicalInfoStatus.PROCESSING);
             info.setLastError(null);
+
             technicalInfoRepository.save(info);
 
             Path videoPath = pathResolver.resolve(mediaItem);
@@ -67,6 +70,7 @@ public class MediaTechnicalInfoWorker {
 
             if (initialFileSize != finalFileSize
                     || !initialLastModified.equals(finalLastModified)) {
+
                 throw new IllegalStateException(
                         "Media file changed during extraction. Please retry."
                 );
@@ -102,21 +106,117 @@ public class MediaTechnicalInfoWorker {
 
             technicalInfoRepository.save(info);
 
+            log.info(
+                    "Technical information extraction completed for media item {}",
+                    mediaItemId
+            );
+
         } catch (Exception exception) {
 
             if (exception instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
             }
 
-            technicalInfoRepository.findByMediaItem_Id(mediaItemId)
-                    .ifPresent(info -> {
-                        info.setStatus(TechnicalInfoStatus.FAILED);
-                        info.setLastError(safeErrorMessage(exception));
-                        technicalInfoRepository.save(info);
-                    });
+            log.error(
+                    "Technical information extraction failed for media item {}",
+                    mediaItemId,
+                    exception
+            );
+
+            markExtractionFailure(mediaItemId, exception);
 
         } finally {
             jobRegistry.unregister(mediaItemId);
+        }
+    }
+
+    private void markExtractionFailure(
+            String mediaItemId,
+            Exception exception
+    ) {
+
+        try {
+            technicalInfoRepository.findByMediaItem_Id(mediaItemId)
+                    .ifPresent(info -> {
+
+                        /*
+                         * Preserve COMPLETED if the previous extraction
+                         * still describes the current media file.
+                         */
+                        if (hasValidPreviousExtraction(info, mediaItemId)) {
+
+                            info.setStatus(TechnicalInfoStatus.COMPLETED);
+                            info.setLastError(null);
+
+                            log.warn(
+                                    "Extraction attempt failed for media item {}, "
+                                            + "but its previous technical information "
+                                            + "is still valid. Preserving COMPLETED status.",
+                                    mediaItemId
+                            );
+
+                        } else {
+
+                            info.setStatus(TechnicalInfoStatus.FAILED);
+                            info.setLastError(safeErrorMessage(exception));
+                        }
+
+                        technicalInfoRepository.save(info);
+                    });
+
+        } catch (Exception persistenceException) {
+
+            log.error(
+                    "Unable to update technical information failure status "
+                            + "for media item {}",
+                    mediaItemId,
+                    persistenceException
+            );
+        }
+    }
+
+    private boolean hasValidPreviousExtraction(
+            MediaTechnicalInfo info,
+            String mediaItemId
+    ) {
+
+        if (info.getExtractedAt() == null
+                || info.getSourceFileSizeBytes() == null
+                || info.getSourceLastModifiedAt() == null) {
+
+            return false;
+        }
+
+        try {
+            MediaItem mediaItem = mediaItemRepository
+                    .findWithCollectionById(mediaItemId)
+                    .orElse(null);
+
+            if (mediaItem == null) {
+                return false;
+            }
+
+            Path videoPath = pathResolver.resolve(mediaItem);
+
+            long currentFileSize = Files.size(videoPath);
+
+            Instant currentLastModified = Files
+                    .getLastModifiedTime(videoPath)
+                    .toInstant();
+
+            return info.getSourceFileSizeBytes() == currentFileSize
+                    && info.getSourceLastModifiedAt().equals(currentLastModified);
+
+        } catch (Exception exception) {
+
+            log.warn(
+                    "Unable to validate previous technical information "
+                            + "for media item {}",
+                    mediaItemId,
+                    exception
+            );
+
+            return false;
         }
     }
 

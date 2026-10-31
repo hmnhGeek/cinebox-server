@@ -1,3 +1,4 @@
+
 package com.webvideoplayer.player.services.impl;
 
 import com.webvideoplayer.player.dto.MediaTechnicalInfoDTO;
@@ -68,6 +69,7 @@ public class MediaTechnicalInfoService {
             Path videoPath = pathResolver.resolve(mediaItem);
 
             long currentFileSize = Files.size(videoPath);
+
             Instant currentLastModified = Files
                     .getLastModifiedTime(videoPath)
                     .toInstant();
@@ -80,17 +82,32 @@ public class MediaTechnicalInfoService {
                         return newInfo;
                     });
 
-            boolean cacheIsValid =
-                    info.getStatus() == TechnicalInfoStatus.COMPLETED
-                            && info.getSourceFileSizeBytes() != null
-                            && info.getSourceFileSizeBytes() == currentFileSize
-                            && info.getSourceLastModifiedAt() != null
-                            && info.getSourceLastModifiedAt().equals(
-                            currentLastModified
-                    );
+            boolean cacheIsValid = isCacheValid(
+                    info,
+                    currentFileSize,
+                    currentLastModified
+            );
 
+            /*
+             * A previous extraction is still valid.
+             *
+             * This also repairs records that were incorrectly marked FAILED
+             * by an earlier queue rejection.
+             */
             if (cacheIsValid && !force) {
+
+                boolean statusNeedsRepair =
+                        info.getStatus() != TechnicalInfoStatus.COMPLETED
+                                || info.getLastError() != null;
+
+                if (statusNeedsRepair) {
+                    info.setStatus(TechnicalInfoStatus.COMPLETED);
+                    info.setLastError(null);
+                    technicalInfoRepository.saveAndFlush(info);
+                }
+
                 jobRegistry.unregister(mediaItemId);
+
                 return toDTO(info, mediaItem);
             }
 
@@ -101,19 +118,35 @@ public class MediaTechnicalInfoService {
 
             try {
                 worker.extractAsync(mediaItemId);
+
             } catch (TaskRejectedException | IllegalStateException exception) {
 
-                info.setStatus(TechnicalInfoStatus.FAILED);
-                info.setLastError(
-                        "Technical information extraction could not be queued. "
-                                + "Please try again later."
-                );
+                /*
+                 * Queue rejection does not invalidate an earlier successful
+                 * extraction if the underlying file has not changed.
+                 */
+                if (cacheIsValid) {
+                    info.setStatus(TechnicalInfoStatus.COMPLETED);
+                    info.setLastError(null);
 
-                technicalInfoRepository.save(info);
+                } else {
+                    info.setStatus(TechnicalInfoStatus.FAILED);
+                    info.setLastError(
+                            "Technical information extraction could not be queued. "
+                                    + "Please try again later."
+                    );
+                }
+
+                technicalInfoRepository.saveAndFlush(info);
+
                 jobRegistry.unregister(mediaItemId);
             }
 
-            return toDTO(info, mediaItem);
+            /*
+             * Reload the record because the asynchronous worker may already
+             * have started or completed by this point.
+             */
+            return getTechnicalInfo(mediaItemId);
 
         } catch (IOException exception) {
 
@@ -129,6 +162,25 @@ public class MediaTechnicalInfoService {
             jobRegistry.unregister(mediaItemId);
             throw exception;
         }
+    }
+
+    private boolean isCacheValid(
+            MediaTechnicalInfo info,
+            long currentFileSize,
+            Instant currentLastModified
+    ) {
+
+        /*
+         * Do not rely exclusively on the status field here.
+         *
+         * A record might have been incorrectly marked FAILED while still
+         * containing a perfectly valid previous extraction.
+         */
+        return info.getExtractedAt() != null
+                && info.getSourceFileSizeBytes() != null
+                && info.getSourceFileSizeBytes() == currentFileSize
+                && info.getSourceLastModifiedAt() != null
+                && info.getSourceLastModifiedAt().equals(currentLastModified);
     }
 
     private MediaItem getMediaItem(String mediaItemId) {

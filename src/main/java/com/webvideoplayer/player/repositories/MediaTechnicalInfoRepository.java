@@ -9,4 +9,6 @@ public interface MediaTechnicalInfoRepository
         extends JpaRepository<MediaTechnicalInfo, String> {
 
     Optional<MediaTechnicalInfo> findByMediaItem_Id(String mediaItemId);
+
+    void deleteByMediaItem_Id(String mediaItemId);
 }
