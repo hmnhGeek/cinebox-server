@@ -391,4 +391,14 @@ public interface MediaItemRepository
             @Param("collectionIds") List<String> collectionIds,
             Pageable pageable
     );
+
+    @Query("""
+        SELECT mi
+        FROM MediaItem mi
+        JOIN FETCH mi.collection
+        WHERE mi.id = :mediaItemId
+        """)
+    Optional<MediaItem> findWithCollectionById(
+            @Param("mediaItemId") String mediaItemId
+    );
 }
