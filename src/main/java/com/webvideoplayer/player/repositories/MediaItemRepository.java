@@ -1,4 +1,3 @@
-
 package com.webvideoplayer.player.repositories;
 
 import com.webvideoplayer.player.entities.MediaItem;
@@ -19,6 +18,11 @@ public interface MediaItemRepository
             String collectionId
     );
 
+    Page<MediaItem> findByCollection_Id(
+            String collectionId,
+            Pageable pageable
+    );
+
     Optional<MediaItem> findByCollection_IdAndRelativePath(
             String collectionId,
             String relativePath
@@ -29,7 +33,7 @@ public interface MediaItemRepository
             String relativePath
     );
 
-    /**
+    /*
      * Returns distinct actors from the supplied collections.
      */
     @Query(
@@ -56,7 +60,7 @@ public interface MediaItemRepository
             Pageable pageable
     );
 
-    /**
+    /*
      * Returns distinct actors whose profiles have a nonblank
      * profile-image path recorded in person_profiles.
      *
@@ -313,7 +317,7 @@ public interface MediaItemRepository
             Pageable pageable
     );
 
-    /**
+    /*
      * Searches distinct actors by name.
      */
     @Query(
@@ -345,7 +349,7 @@ public interface MediaItemRepository
             Pageable pageable
     );
 
-    /**
+    /*
      * Searches distinct actors by name, restricted to profiles
      * with a nonblank stored profile-image path.
      */
@@ -393,11 +397,11 @@ public interface MediaItemRepository
     );
 
     @Query("""
-        SELECT mi
-        FROM MediaItem mi
-        JOIN FETCH mi.collection
-        WHERE mi.id = :mediaItemId
-        """)
+            SELECT mi
+            FROM MediaItem mi
+            JOIN FETCH mi.collection
+            WHERE mi.id = :mediaItemId
+            """)
     Optional<MediaItem> findWithCollectionById(
             @Param("mediaItemId") String mediaItemId
     );
