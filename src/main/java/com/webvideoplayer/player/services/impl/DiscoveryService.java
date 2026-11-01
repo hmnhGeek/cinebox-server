@@ -1,4 +1,3 @@
-
 package com.webvideoplayer.player.services.impl;
 
 import com.webvideoplayer.player.dto.ActorBrowseDTO;
@@ -13,8 +12,6 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.List;
 
 @Service
@@ -192,15 +189,7 @@ public class DiscoveryService {
     private Page<VideoMetadata> mapToVideoMetadata(
             Page<MediaItem> videos
     ) {
-        return videos.map(item -> {
-            Collection collection = item.getCollection();
-            Path collectionPath = Paths.get(collection.getFolder());
-
-            return collectionService.mapToVideoMetadata(
-                    item,
-                    collectionPath
-            );
-        });
+        return collectionService.mapToVideoMetadata(videos);
     }
 
     private List<String> getAvailableCollectionIds() {

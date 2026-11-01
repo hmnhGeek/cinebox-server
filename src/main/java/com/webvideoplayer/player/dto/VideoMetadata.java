@@ -1,4 +1,3 @@
-
 package com.webvideoplayer.player.dto;
 
 import lombok.Builder;
@@ -23,6 +22,12 @@ public class VideoMetadata {
     private String premiered;
     private String releaseDate;
     private Integer runtime;
+
+    private String resolution;
+    private Integer width;
+    private Integer height;
+    private Long durationSeconds;
+    private Long fileSizeBytes;
 
     private StudioDTO studio;
     private List<StudioDTO> studios;
