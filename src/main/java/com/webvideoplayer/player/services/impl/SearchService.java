@@ -1,7 +1,9 @@
-
 package com.webvideoplayer.player.services.impl;
 
-import com.webvideoplayer.player.dto.*;
+import com.webvideoplayer.player.dto.ActorBrowseDTO;
+import com.webvideoplayer.player.dto.SearchSuggestionItem;
+import com.webvideoplayer.player.dto.SearchSuggestionsResponse;
+import com.webvideoplayer.player.dto.VideoMetadata;
 import com.webvideoplayer.player.entities.Collection;
 import com.webvideoplayer.player.entities.MediaItem;
 import com.webvideoplayer.player.entities.Person;
@@ -15,11 +17,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.stream.IntStream;
 
 @Service
 @RequiredArgsConstructor
@@ -89,11 +90,24 @@ public class SearchService {
 
         boolean hasMore = videoPage.getContent().size() > limit;
 
-        List<SearchSuggestionItem> results = videoPage.getContent()
+        List<MediaItem> suggestionItems = videoPage.getContent()
                 .stream()
                 .limit(limit)
-                .map(item -> toSuggestion(item, normalizedQuery))
                 .toList();
+
+        // Map all suggestions together so technical information is
+        // fetched in one batch instead of one query per suggestion.
+        List<VideoMetadata> suggestionMetadata =
+                collectionService.mapToVideoMetadata(suggestionItems);
+
+        List<SearchSuggestionItem> results =
+                IntStream.range(0, suggestionItems.size())
+                        .mapToObj(index -> toSuggestion(
+                                suggestionItems.get(index),
+                                suggestionMetadata.get(index),
+                                normalizedQuery
+                        ))
+                        .toList();
 
         return new SearchSuggestionsResponse(
                 normalizedQuery,
@@ -128,33 +142,15 @@ public class SearchService {
                 pageable
         );
 
-        return videos.map(item -> {
-            Path collectionPath = Paths.get(
-                    item.getCollection().getFolder()
-            );
-
-            return collectionService.mapToVideoMetadata(
-                    item,
-                    collectionPath
-            );
-        });
+        return collectionService.mapToVideoMetadata(videos);
     }
 
     private SearchSuggestionItem toSuggestion(
             MediaItem item,
+            VideoMetadata metadata,
             String query
     ) {
         Collection collection = item.getCollection();
-
-        Path collectionPath = Paths.get(
-                collection.getFolder()
-        ).toAbsolutePath().normalize();
-
-        VideoMetadata metadata =
-                collectionService.mapToVideoMetadata(
-                        item,
-                        collectionPath
-                );
 
         String description = metadata.getPlot();
 

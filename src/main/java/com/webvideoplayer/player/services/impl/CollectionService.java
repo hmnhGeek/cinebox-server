@@ -2,38 +2,42 @@ package com.webvideoplayer.player.services.impl;
 
 import com.webvideoplayer.player.dto.*;
 import com.webvideoplayer.player.entities.Collection;
+import com.webvideoplayer.player.entities.MediaItem;
+import com.webvideoplayer.player.entities.MediaItemPerson;
+import com.webvideoplayer.player.entities.MediaItemTag;
+import com.webvideoplayer.player.entities.MediaMetadata;
+import com.webvideoplayer.player.entities.MediaTechnicalInfo;
+import com.webvideoplayer.player.enums.CollectionSyncStatus;
 import com.webvideoplayer.player.repositories.CollectionRepository;
+import com.webvideoplayer.player.repositories.MediaItemPersonRepository;
+import com.webvideoplayer.player.repositories.MediaItemRepository;
+import com.webvideoplayer.player.repositories.MediaItemTagRepository;
+import com.webvideoplayer.player.repositories.MediaMetadataRepository;
+import com.webvideoplayer.player.repositories.MediaTechnicalInfoRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
-import org.springframework.web.server.ResponseStatusException;
-import com.webvideoplayer.player.enums.CollectionSyncStatus;
-
-import com.webvideoplayer.player.entities.MediaItem;
-import com.webvideoplayer.player.entities.MediaMetadata;
-import com.webvideoplayer.player.entities.MediaItemPerson;
-import com.webvideoplayer.player.entities.MediaItemTag;
-import com.webvideoplayer.player.repositories.MediaItemRepository;
-import com.webvideoplayer.player.repositories.MediaMetadataRepository;
-import com.webvideoplayer.player.repositories.MediaItemPersonRepository;
-import com.webvideoplayer.player.repositories.MediaItemTagRepository;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.nio.charset.StandardCharsets;
-import java.net.URLEncoder;
-import java.util.Comparator;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 @Slf4j
@@ -50,11 +54,13 @@ public class CollectionService {
     private final MediaMetadataRepository mediaMetadataRepository;
     private final MediaItemPersonRepository mediaItemPersonRepository;
     private final MediaItemTagRepository mediaItemTagRepository;
+    private final MediaTechnicalInfoRepository mediaTechnicalInfoRepository;
 
     public Collection addCollection(
             String title,
             String folder,
-            String tagline) {
+            String tagline
+    ) {
 
         Path collectionPath = Paths.get(folder)
                 .toAbsolutePath()
@@ -121,6 +127,7 @@ public class CollectionService {
 
             mediaItemPersonRepository.deleteByMediaItem_Id(itemId);
             mediaItemTagRepository.deleteByMediaItem_Id(itemId);
+            mediaTechnicalInfoRepository.deleteByMediaItem_Id(itemId);
 
             mediaMetadataRepository.findByMediaItem_Id(itemId)
                     .ifPresent(mediaMetadataRepository::delete);
@@ -134,30 +141,115 @@ public class CollectionService {
     @Transactional(readOnly = true)
     public List<VideoMetadata> getVideos(String id) {
 
-        Collection collection = getCollectionById(id);
+        getCollectionById(id);
 
-        Path collectionPath = Paths.get(collection.getFolder())
-                .toAbsolutePath()
-                .normalize();
+        List<MediaItem> items =
+                mediaItemRepository.findByCollection_IdOrderByTitleAsc(id);
 
-        return mediaItemRepository
-                .findByCollection_IdOrderByTitleAsc(id)
-                .stream()
-                .map(item -> mapToVideoMetadata(item, collectionPath))
+        return mapToVideoMetadata(items);
+    }
+
+    /**
+     * Maps a list of media items to VideoMetadata.
+     *
+     * Technical information is loaded in one batch rather than querying
+     * the technical-info repository separately for every media item.
+     */
+    @Transactional(readOnly = true)
+    public List<VideoMetadata> mapToVideoMetadata(
+            List<MediaItem> items
+    ) {
+
+        if (items == null || items.isEmpty()) {
+            return List.of();
+        }
+
+        List<String> mediaItemIds = items.stream()
+                .map(MediaItem::getId)
+                .toList();
+
+        Map<String, MediaTechnicalInfo> technicalInfoByMediaItemId =
+                mediaTechnicalInfoRepository
+                        .findAllByMediaItem_IdIn(mediaItemIds)
+                        .stream()
+                        .collect(Collectors.toMap(
+                                info -> info.getMediaItem().getId(),
+                                Function.identity(),
+                                (first, second) -> first
+                        ));
+
+        return items.stream()
+                .map(item -> {
+
+                    Path collectionPath = Paths.get(
+                            item.getCollection().getFolder()
+                    ).toAbsolutePath().normalize();
+
+                    MediaTechnicalInfo technicalInfo =
+                            technicalInfoByMediaItemId.get(item.getId());
+
+                    return mapToVideoMetadata(
+                            item,
+                            collectionPath,
+                            technicalInfo
+                    );
+                })
                 .toList();
     }
 
+    /**
+     * Maps a paginated result while preserving its pagination metadata.
+     */
+    @Transactional(readOnly = true)
+    public Page<VideoMetadata> mapToVideoMetadata(
+            Page<MediaItem> videos
+    ) {
+
+        List<VideoMetadata> content =
+                mapToVideoMetadata(videos.getContent());
+
+        return new PageImpl<>(
+                content,
+                videos.getPageable(),
+                videos.getTotalElements()
+        );
+    }
+
+    /**
+     * Maps one media item to VideoMetadata.
+     *
+     * This overload is retained for individual-video metadata requests.
+     */
+    @Transactional(readOnly = true)
     public VideoMetadata mapToVideoMetadata(
             MediaItem item,
-            Path collectionPath) {
+            Path collectionPath
+    ) {
+
+        MediaTechnicalInfo technicalInfo =
+                mediaTechnicalInfoRepository
+                        .findByMediaItem_Id(item.getId())
+                        .orElse(null);
+
+        return mapToVideoMetadata(
+                item,
+                collectionPath,
+                technicalInfo
+        );
+    }
+
+    /**
+     * Shared mapping implementation.
+     */
+    private VideoMetadata mapToVideoMetadata(
+            MediaItem item,
+            Path collectionPath,
+            MediaTechnicalInfo technicalInfo
+    ) {
 
         MediaMetadata metadata = mediaMetadataRepository
                 .findByMediaItem_Id(item.getId())
                 .orElse(null);
-
-        Path videoPath = collectionPath
-                .resolve(item.getRelativePath())
-                .normalize();
 
         List<MediaItemPerson> people =
                 mediaItemPersonRepository.findByMediaItem_Id(item.getId());
@@ -272,6 +364,18 @@ public class CollectionService {
                         : (int) Math.round(
                         item.getDurationSeconds() / 60.0
                 ))
+
+                // Technical media information
+                .resolution(technicalInfo == null
+                        ? null : technicalInfo.getResolutionLabel())
+                .width(technicalInfo == null
+                        ? null : technicalInfo.getWidth())
+                .height(technicalInfo == null
+                        ? null : technicalInfo.getHeight())
+                .durationSeconds(technicalInfo == null
+                        ? null : technicalInfo.getDurationSeconds())
+                .fileSizeBytes(item.getFileSizeBytes())
+
                 .studio(studios.isEmpty() ? null : studios.getFirst())
                 .studios(studios)
                 .directors(directors)
@@ -313,8 +417,8 @@ public class CollectionService {
         }
     }
 
-    /*
-     * 4. Get all collections
+    /**
+     * Get all collections whose folders are currently available.
      */
     public List<Collection> getAllCollections() {
 
@@ -335,8 +439,8 @@ public class CollectionService {
                 .toList();
     }
 
-    /*
-     * 5. Get collection by ID
+    /**
+     * Get collection by ID.
      */
     public Collection getCollectionById(String id) {
 
@@ -368,14 +472,14 @@ public class CollectionService {
         );
     }
 
-    /*
-     * 7. Get preview generation progress
+    /**
+     * Get preview generation progress.
      */
     public Map<String, Integer> getPreviewProgress() {
         return previewGenerationService.getPreviewProgress();
     }
 
-    /*
+    /**
      * Get thumbnail by media item ID.
      */
     @Transactional(readOnly = true)
@@ -430,7 +534,7 @@ public class CollectionService {
         return new FileSystemResource(thumbnailPath);
     }
 
-    /*
+    /**
      * Get preview by media item ID.
      */
     @Transactional(readOnly = true)
@@ -484,7 +588,7 @@ public class CollectionService {
         return new FileSystemResource(previewPath);
     }
 
-    /*
+    /**
      * Get poster by media item ID.
      */
     @Transactional(readOnly = true)
@@ -538,7 +642,7 @@ public class CollectionService {
         return new FileSystemResource(posterPath);
     }
 
-    /*
+    /**
      * Get video by media item ID.
      */
     @Transactional(readOnly = true)
@@ -637,14 +741,15 @@ public class CollectionService {
         return new FileSystemResource(images.getFirst());
     }
 
-    /*
+    /**
      * Helper: resolve a video folder safely.
      *
      * Prevents paths outside the collection directory.
      */
     private Path resolveVideoFolder(
             Path collectionFolder,
-            String videoFolderName) {
+            String videoFolderName
+    ) {
 
         Path videoFolder = collectionFolder
                 .resolve(videoFolderName)
@@ -667,7 +772,7 @@ public class CollectionService {
         return videoFolder;
     }
 
-    /*
+    /**
      * Helper: get filename without extension.
      */
     private String getBaseName(Path path) {
@@ -680,11 +785,15 @@ public class CollectionService {
                 : filename;
     }
 
-    public CollectionSyncStatus getPreviewGenerationStatus(String collectionId) {
+    public CollectionSyncStatus getPreviewGenerationStatus(
+            String collectionId
+    ) {
         return previewGenerationService.getSyncStatus(collectionId);
     }
 
-    public CatalogSyncProgress getCatalogSyncProgress(String collectionId) {
+    public CatalogSyncProgress getCatalogSyncProgress(
+            String collectionId
+    ) {
         return mediaCatalogSyncAsyncService.getProgress(collectionId);
     }
 }
