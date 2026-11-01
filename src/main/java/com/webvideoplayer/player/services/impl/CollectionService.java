@@ -20,6 +20,8 @@ import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -138,22 +140,118 @@ public class CollectionService {
         collectionRepository.delete(collection);
     }
 
+    /*
+     * Returns a page of videos from a collection.
+     *
+     * Pagination is performed by the database. Only the records
+     * belonging to the requested page are loaded and mapped.
+     */
     @Transactional(readOnly = true)
-    public List<VideoMetadata> getVideos(String id) {
+    public Page<VideoMetadata> getVideos(
+            String id,
+            int page,
+            int size,
+            String sortBy,
+            String direction
+    ) {
 
         getCollectionById(id);
 
-        List<MediaItem> items =
-                mediaItemRepository.findByCollection_IdOrderByTitleAsc(id);
+        if (page < 0) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Page index cannot be negative"
+            );
+        }
+
+        if (size < 1 || size > 100) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Page size must be between 1 and 100"
+            );
+        }
+
+        String sortProperty = resolveVideoSortProperty(sortBy);
+
+        Sort.Direction sortDirection;
+
+        try {
+            sortDirection = Sort.Direction.fromString(direction);
+        } catch (IllegalArgumentException | NullPointerException exception) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Invalid sort direction. Supported values are asc and desc."
+            );
+        }
+
+        Sort sort = Sort.by(sortDirection, sortProperty);
+
+        // Add a deterministic secondary sort so records with identical
+        // primary sort values have a stable position between pages.
+        if (!"id".equals(sortProperty)) {
+            sort = sort.and(
+                    Sort.by(Sort.Direction.ASC, "id")
+            );
+        }
+
+        PageRequest pageable = PageRequest.of(
+                page,
+                size,
+                sort
+        );
+
+        Page<MediaItem> items =
+                mediaItemRepository.findByCollection_Id(id, pageable);
 
         return mapToVideoMetadata(items);
     }
 
-    /**
+    /*
+     * Only explicitly supported entity properties can be used for sorting.
+     * This prevents clients from passing arbitrary property names.
+     */
+    private String resolveVideoSortProperty(String sortBy) {
+
+        if (sortBy == null || sortBy.isBlank()) {
+            return "title";
+        }
+
+        return switch (sortBy.trim()) {
+            case "title" -> "title";
+            case "fileSizeBytes" -> "fileSizeBytes";
+            case "durationSeconds" -> "durationSeconds";
+            case "lastModifiedAt" -> "lastModifiedAt";
+            default -> throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Unsupported sort field. Supported fields are: "
+                            + "title, fileSizeBytes, durationSeconds, lastModifiedAt."
+            );
+        };
+    }
+
+    /*
+     * Maps a paginated result while preserving its pagination metadata.
+     */
+    @Transactional(readOnly = true)
+    public Page<VideoMetadata> mapToVideoMetadata(
+            Page<MediaItem> videos
+    ) {
+
+        List<VideoMetadata> content =
+                mapToVideoMetadata(videos.getContent());
+
+        return new PageImpl<>(
+                content,
+                videos.getPageable(),
+                videos.getTotalElements()
+        );
+    }
+
+    /*
      * Maps a list of media items to VideoMetadata.
      *
-     * Technical information is loaded in one batch rather than querying
-     * the technical-info repository separately for every media item.
+     * All associated information is loaded in batches for the current
+     * page, avoiding per-video repository lookups.
      */
     @Transactional(readOnly = true)
     public List<VideoMetadata> mapToVideoMetadata(
@@ -178,6 +276,32 @@ public class CollectionService {
                                 (first, second) -> first
                         ));
 
+        Map<String, MediaMetadata> metadataByMediaItemId =
+                mediaMetadataRepository
+                        .findAllByMediaItem_IdIn(mediaItemIds)
+                        .stream()
+                        .collect(Collectors.toMap(
+                                metadata -> metadata.getMediaItem().getId(),
+                                Function.identity(),
+                                (first, second) -> first
+                        ));
+
+        Map<String, List<MediaItemPerson>> peopleByMediaItemId =
+                mediaItemPersonRepository
+                        .findByMediaItem_IdIn(mediaItemIds)
+                        .stream()
+                        .collect(Collectors.groupingBy(
+                                person -> person.getMediaItem().getId()
+                        ));
+
+        Map<String, List<MediaItemTag>> tagsByMediaItemId =
+                mediaItemTagRepository
+                        .findByMediaItem_IdIn(mediaItemIds)
+                        .stream()
+                        .collect(Collectors.groupingBy(
+                                tag -> tag.getMediaItem().getId()
+                        ));
+
         return items.stream()
                 .map(item -> {
 
@@ -185,37 +309,25 @@ public class CollectionService {
                             item.getCollection().getFolder()
                     ).toAbsolutePath().normalize();
 
-                    MediaTechnicalInfo technicalInfo =
-                            technicalInfoByMediaItemId.get(item.getId());
-
                     return mapToVideoMetadata(
                             item,
                             collectionPath,
-                            technicalInfo
+                            technicalInfoByMediaItemId.get(item.getId()),
+                            metadataByMediaItemId.get(item.getId()),
+                            peopleByMediaItemId.getOrDefault(
+                                    item.getId(),
+                                    List.of()
+                            ),
+                            tagsByMediaItemId.getOrDefault(
+                                    item.getId(),
+                                    List.of()
+                            )
                     );
                 })
                 .toList();
     }
 
-    /**
-     * Maps a paginated result while preserving its pagination metadata.
-     */
-    @Transactional(readOnly = true)
-    public Page<VideoMetadata> mapToVideoMetadata(
-            Page<MediaItem> videos
-    ) {
-
-        List<VideoMetadata> content =
-                mapToVideoMetadata(videos.getContent());
-
-        return new PageImpl<>(
-                content,
-                videos.getPageable(),
-                videos.getTotalElements()
-        );
-    }
-
-    /**
+    /*
      * Maps one media item to VideoMetadata.
      *
      * This overload is retained for individual-video metadata requests.
@@ -231,31 +343,41 @@ public class CollectionService {
                         .findByMediaItem_Id(item.getId())
                         .orElse(null);
 
-        return mapToVideoMetadata(
-                item,
-                collectionPath,
-                technicalInfo
-        );
-    }
-
-    /**
-     * Shared mapping implementation.
-     */
-    private VideoMetadata mapToVideoMetadata(
-            MediaItem item,
-            Path collectionPath,
-            MediaTechnicalInfo technicalInfo
-    ) {
-
-        MediaMetadata metadata = mediaMetadataRepository
-                .findByMediaItem_Id(item.getId())
-                .orElse(null);
+        MediaMetadata metadata =
+                mediaMetadataRepository
+                        .findByMediaItem_Id(item.getId())
+                        .orElse(null);
 
         List<MediaItemPerson> people =
                 mediaItemPersonRepository.findByMediaItem_Id(item.getId());
 
         List<MediaItemTag> itemTags =
                 mediaItemTagRepository.findByMediaItem_Id(item.getId());
+
+        return mapToVideoMetadata(
+                item,
+                collectionPath,
+                technicalInfo,
+                metadata,
+                people,
+                itemTags
+        );
+    }
+
+    /*
+     * Shared mapping implementation.
+     *
+     * All associations are passed in by the caller. This method does
+     * not perform repository queries.
+     */
+    private VideoMetadata mapToVideoMetadata(
+            MediaItem item,
+            Path collectionPath,
+            MediaTechnicalInfo technicalInfo,
+            MediaMetadata metadata,
+            List<MediaItemPerson> people,
+            List<MediaItemTag> itemTags
+    ) {
 
         // Directors
         List<PersonDTO> directors = people.stream()
@@ -417,7 +539,7 @@ public class CollectionService {
         }
     }
 
-    /**
+    /*
      * Get all collections whose folders are currently available.
      */
     public List<Collection> getAllCollections() {
@@ -439,7 +561,7 @@ public class CollectionService {
                 .toList();
     }
 
-    /**
+    /*
      * Get collection by ID.
      */
     public Collection getCollectionById(String id) {
@@ -451,6 +573,7 @@ public class CollectionService {
     }
 
     public void synchroniseCollection(String collectionId) {
+
         mediaCatalogSyncAsyncService.synchronizeCollectionAsync(
                 collectionId
         );
@@ -472,14 +595,14 @@ public class CollectionService {
         );
     }
 
-    /**
+    /*
      * Get preview generation progress.
      */
     public Map<String, Integer> getPreviewProgress() {
         return previewGenerationService.getPreviewProgress();
     }
 
-    /**
+    /*
      * Get thumbnail by media item ID.
      */
     @Transactional(readOnly = true)
@@ -534,7 +657,7 @@ public class CollectionService {
         return new FileSystemResource(thumbnailPath);
     }
 
-    /**
+    /*
      * Get preview by media item ID.
      */
     @Transactional(readOnly = true)
@@ -588,7 +711,7 @@ public class CollectionService {
         return new FileSystemResource(previewPath);
     }
 
-    /**
+    /*
      * Get poster by media item ID.
      */
     @Transactional(readOnly = true)
@@ -642,7 +765,7 @@ public class CollectionService {
         return new FileSystemResource(posterPath);
     }
 
-    /**
+    /*
      * Get video by media item ID.
      */
     @Transactional(readOnly = true)
@@ -741,7 +864,7 @@ public class CollectionService {
         return new FileSystemResource(images.getFirst());
     }
 
-    /**
+    /*
      * Helper: resolve a video folder safely.
      *
      * Prevents paths outside the collection directory.
@@ -772,7 +895,7 @@ public class CollectionService {
         return videoFolder;
     }
 
-    /**
+    /*
      * Helper: get filename without extension.
      */
     private String getBaseName(Path path) {

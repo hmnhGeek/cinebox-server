@@ -2,13 +2,12 @@ package com.webvideoplayer.player.controllers;
 
 import com.webvideoplayer.player.dto.CatalogSyncProgress;
 import com.webvideoplayer.player.dto.CreateCollectionRequest;
-import com.webvideoplayer.player.dto.RequestThumbnailDTO;
 import com.webvideoplayer.player.dto.VideoMetadata;
 import com.webvideoplayer.player.entities.Collection;
-import com.webvideoplayer.player.enums.CollectionSyncStatus;
 import com.webvideoplayer.player.services.impl.CollectionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.Resource;
+import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -18,7 +17,6 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.List;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/collections")
@@ -35,12 +33,11 @@ public class CollectionController {
             @RequestBody CreateCollectionRequest request
     ) {
 
-        Collection collection =
-                collectionService.addCollection(
-                        request.getTitle(),
-                        request.getFolder(),
-                        request.getTagline()
-                );
+        Collection collection = collectionService.addCollection(
+                request.getTitle(),
+                request.getFolder(),
+                request.getTagline()
+        );
 
         return ResponseEntity
                 .status(HttpStatus.CREATED)
@@ -61,17 +58,26 @@ public class CollectionController {
     }
 
     /*
-     * 3. Get all videos in collection
+     * 3. Get paginated videos in a collection.
      *
-     * Only metadata is returned.
+     * Supports database-level pagination and sorting.
      */
     @GetMapping("/{id}/videos")
-    public ResponseEntity<List<VideoMetadata>> getVideos(
-            @PathVariable String id
+    public ResponseEntity<Page<VideoMetadata>> getVideos(
+            @PathVariable String id,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "24") int size,
+            @RequestParam(defaultValue = "title") String sortBy,
+            @RequestParam(defaultValue = "asc") String direction
     ) {
 
-        List<VideoMetadata> videos =
-                collectionService.getVideos(id);
+        Page<VideoMetadata> videos = collectionService.getVideos(
+                id,
+                page,
+                size,
+                sortBy,
+                direction
+        );
 
         return ResponseEntity.ok(videos);
     }
@@ -81,7 +87,9 @@ public class CollectionController {
      */
     @GetMapping
     public ResponseEntity<List<Collection>> getAllCollections() {
-        List<Collection> collections = collectionService.getAllCollections();
+
+        List<Collection> collections =
+                collectionService.getAllCollections();
 
         return ResponseEntity.ok(collections);
     }
@@ -91,7 +99,8 @@ public class CollectionController {
             @RequestParam("mediaItemId") String mediaItemId
     ) throws IOException {
 
-        Resource resource = collectionService.getThumbnail(mediaItemId);
+        Resource resource =
+                collectionService.getThumbnail(mediaItemId);
 
         File file = resource.getFile();
         String contentType = Files.probeContentType(file.toPath());
@@ -110,7 +119,8 @@ public class CollectionController {
             @RequestParam("mediaItemId") String mediaItemId
     ) throws IOException {
 
-        Resource resource = collectionService.getPreview(mediaItemId);
+        Resource resource =
+                collectionService.getPreview(mediaItemId);
 
         File file = resource.getFile();
         String contentType = Files.probeContentType(file.toPath());
@@ -129,7 +139,8 @@ public class CollectionController {
             @RequestParam("mediaItemId") String mediaItemId
     ) throws IOException {
 
-        Resource resource = collectionService.getPoster(mediaItemId);
+        Resource resource =
+                collectionService.getPoster(mediaItemId);
 
         File file = resource.getFile();
         String contentType = Files.probeContentType(file.toPath());
@@ -148,7 +159,8 @@ public class CollectionController {
             @RequestParam("mediaItemId") String mediaItemId
     ) throws IOException {
 
-        Resource resource = collectionService.getVideo(mediaItemId);
+        Resource resource =
+                collectionService.getVideo(mediaItemId);
 
         File file = resource.getFile();
         String contentType = Files.probeContentType(file.toPath());
@@ -166,6 +178,7 @@ public class CollectionController {
     public ResponseEntity<VideoMetadata> getVideoMetadata(
             @RequestParam("mediaItemId") String mediaItemId
     ) {
+
         VideoMetadata videoMetadata =
                 collectionService.getVideoMetadata(mediaItemId);
 
@@ -173,30 +186,33 @@ public class CollectionController {
     }
 
     @PostMapping("/sync")
-    public ResponseEntity<Void> sync(@RequestParam String collectionId)
-            throws IOException {
+    public ResponseEntity<Void> sync(
+            @RequestParam String collectionId
+    ) throws IOException {
+
         collectionService.synchroniseCollection(collectionId);
+
         return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/previews/generate")
     public ResponseEntity<Void> generatePreviews(
-            @RequestParam String collectionId) {
+            @RequestParam String collectionId
+    ) {
+
         collectionService.generatePreviews(collectionId);
+
         return ResponseEntity.accepted().build();
     }
 
-//    @GetMapping("/preview/preview-progress")
-//    public Map<String, Integer> getPreviewProgress() {
-//        CollectionSyncStatus status =
-//                collectionService.getSyncStatus(collectionId);
-//
-//        return Map.of("status", status.name());
-//    }
-
     @GetMapping("/{id}")
-    public ResponseEntity<Collection> getCollectionById(@PathVariable String id) {
-        Collection collection = collectionService.getCollectionById(id);
+    public ResponseEntity<Collection> getCollectionById(
+            @PathVariable String id
+    ) {
+
+        Collection collection =
+                collectionService.getCollectionById(id);
+
         return ResponseEntity.ok(collection);
     }
 
@@ -204,24 +220,29 @@ public class CollectionController {
     public ResponseEntity<Resource> getHeroImage(
             @RequestParam("collectionId") String collectionId
     ) {
-        try {
-            Resource resource = collectionService.getHeroImage(collectionId);
 
-            // If the file doesn't exist on disk, resource.getFile() throws FileNotFoundException -> 404
+        try {
+            Resource resource =
+                    collectionService.getHeroImage(collectionId);
+
             File file = resource.getFile();
 
             String contentType = Files.probeContentType(file.toPath());
 
             return ResponseEntity.ok()
                     .contentType(MediaType.parseMediaType(
-                            contentType != null ? contentType : MediaType.APPLICATION_OCTET_STREAM_VALUE
+                            contentType != null
+                                    ? contentType
+                                    : MediaType.APPLICATION_OCTET_STREAM_VALUE
                     ))
                     .body(resource);
 
         } catch (Exception e) {
-            // Print the real error to your IDE console log!
             e.printStackTrace();
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+
+            return ResponseEntity
+                    .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .build();
         }
     }
 
@@ -229,6 +250,7 @@ public class CollectionController {
     public CatalogSyncProgress getSyncStatus(
             @RequestParam String collectionId
     ) {
+
         return collectionService.getCatalogSyncProgress(collectionId);
     }
 }
