@@ -332,8 +332,6 @@ public class CollectionService {
     }
 
     /*
-     * Maps one media item to VideoMetadata.
-     *
      * This overload is retained for individual-video metadata requests.
      */
     @Transactional(readOnly = true)
@@ -562,6 +560,25 @@ public class CollectionService {
                         return false;
                     }
                 })
+                .toList();
+    }
+
+    /*
+     * Returns IDs of collections whose folders are currently available.
+     *
+     * This deliberately reuses getAllCollections() so availability
+     * checks remain consistent across the application.
+     *
+     * Availability is checked against the filesystem at request time.
+     * No collection or media records are modified when a folder
+     * becomes unavailable.
+     */
+    @Transactional(readOnly = true)
+    public List<String> getAvailableCollectionIds() {
+
+        return getAllCollections()
+                .stream()
+                .map(Collection::getId)
                 .toList();
     }
 

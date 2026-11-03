@@ -16,6 +16,8 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Instant;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -36,13 +38,34 @@ public class PlaybackProgressService {
 
     private final MediaItemRepository mediaItemRepository;
 
+    private final CollectionService collectionService;
+
+    /*
+     * Returns unfinished playback progress only for collections
+     * whose folders are currently available.
+     *
+     * Availability is checked at request time, so locked Cryptomator
+     * collections are excluded without deleting their progress records.
+     *
+     * Filtering is performed by the database before pagination,
+     * preserving correct page content and total-element counts.
+     */
     @Transactional(readOnly = true)
     public Page<PlaybackProgressDTO> getContinueWatching(
             Pageable pageable
     ) {
+
+        List<String> availableCollectionIds =
+                collectionService.getAvailableCollectionIds();
+
+        if (availableCollectionIds.isEmpty()) {
+            return Page.empty(pageable);
+        }
+
         return playbackProgressRepository
-                .findByCompletedFalseAndPositionSecondsGreaterThanEqualOrderByLastPlayedAtDesc(
+                .findByCompletedFalseAndPositionSecondsGreaterThanEqualAndMediaItem_Collection_IdInOrderByLastPlayedAtDesc(
                         MINIMUM_CONTINUE_WATCHING_SECONDS,
+                        availableCollectionIds,
                         pageable
                 )
                 .map(this::toDTO);
@@ -115,6 +138,7 @@ public class PlaybackProgressService {
         progress.setDurationSeconds(durationSeconds);
         progress.setProgressPercent(progressPercent);
         progress.setCompleted(completed);
+        progress.setLastPlayedAt(Instant.now());
 
         PlaybackProgress saved =
                 playbackProgressRepository.save(progress);
@@ -157,6 +181,7 @@ public class PlaybackProgressService {
         progress.setDurationSeconds(durationSeconds);
         progress.setCompleted(true);
         progress.setProgressPercent(100.0);
+        progress.setLastPlayedAt(Instant.now());
 
         if (durationSeconds != null && durationSeconds > 0) {
             progress.setPositionSeconds(durationSeconds);
