@@ -22,6 +22,7 @@ import com.webvideoplayer.player.repositories.MediaItemRepository;
 import com.webvideoplayer.player.repositories.MediaItemTagRepository;
 import com.webvideoplayer.player.repositories.MediaMetadataRepository;
 import com.webvideoplayer.player.repositories.MediaTechnicalInfoRepository;
+import com.webvideoplayer.player.repositories.PlaybackProgressRepository;
 import com.webvideoplayer.player.repositories.PersonRepository;
 import com.webvideoplayer.player.repositories.StudioRepository;
 import com.webvideoplayer.player.repositories.TagRepository;
@@ -61,6 +62,7 @@ public class MediaCatalogSyncService {
     private final MediaTechnicalInfoRepository mediaTechnicalInfoRepository;
     private final MediaItemPersonRepository mediaItemPersonRepository;
     private final MediaItemTagRepository mediaItemTagRepository;
+    private final PlaybackProgressRepository playbackProgressRepository;
 
     private final PersonRepository personRepository;
     private final GenreRepository genreRepository;
@@ -479,6 +481,8 @@ public class MediaCatalogSyncService {
     private void deleteIndexedItem(MediaItem item) {
 
         String itemId = item.getId();
+
+        playbackProgressRepository.deleteByMediaItem_Id(itemId);
 
         mediaTechnicalInfoRepository.deleteByMediaItem_Id(itemId);
 

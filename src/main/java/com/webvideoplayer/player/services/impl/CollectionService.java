@@ -14,6 +14,7 @@ import com.webvideoplayer.player.repositories.MediaItemRepository;
 import com.webvideoplayer.player.repositories.MediaItemTagRepository;
 import com.webvideoplayer.player.repositories.MediaMetadataRepository;
 import com.webvideoplayer.player.repositories.MediaTechnicalInfoRepository;
+import com.webvideoplayer.player.repositories.PlaybackProgressRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.FileSystemResource;
@@ -57,6 +58,7 @@ public class CollectionService {
     private final MediaItemPersonRepository mediaItemPersonRepository;
     private final MediaItemTagRepository mediaItemTagRepository;
     private final MediaTechnicalInfoRepository mediaTechnicalInfoRepository;
+    private final PlaybackProgressRepository playbackProgressRepository;
 
     public Collection addCollection(
             String title,
@@ -126,6 +128,8 @@ public class CollectionService {
         for (MediaItem item : items) {
 
             String itemId = item.getId();
+
+            playbackProgressRepository.deleteByMediaItem_Id(itemId);
 
             mediaItemPersonRepository.deleteByMediaItem_Id(itemId);
             mediaItemTagRepository.deleteByMediaItem_Id(itemId);
