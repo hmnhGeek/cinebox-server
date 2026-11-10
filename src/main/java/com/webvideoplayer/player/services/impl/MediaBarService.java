@@ -5,10 +5,12 @@ import com.webvideoplayer.player.dto.MediaBarItemDTO;
 import com.webvideoplayer.player.entities.Collection;
 import com.webvideoplayer.player.entities.MediaItem;
 import com.webvideoplayer.player.entities.MediaMetadata;
+import com.webvideoplayer.player.entities.MediaTechnicalInfo;
 import com.webvideoplayer.player.entities.PlaybackProgress;
 import com.webvideoplayer.player.repositories.CollectionRepository;
 import com.webvideoplayer.player.repositories.MediaItemRepository;
 import com.webvideoplayer.player.repositories.MediaMetadataRepository;
+import com.webvideoplayer.player.repositories.MediaTechnicalInfoRepository;
 import com.webvideoplayer.player.repositories.PlaybackProgressRepository;
 import com.webvideoplayer.player.utils.MediaFilePathResolver;
 import lombok.RequiredArgsConstructor;
@@ -50,6 +52,7 @@ public class MediaBarService {
     private final MediaItemRepository mediaItemRepository;
     private final CollectionRepository collectionRepository;
     private final MediaMetadataRepository mediaMetadataRepository;
+    private final MediaTechnicalInfoRepository mediaTechnicalInfoRepository;
     private final PlaybackProgressRepository playbackProgressRepository;
     private final MediaFilePathResolver mediaFilePathResolver;
 
@@ -69,6 +72,9 @@ public class MediaBarService {
                 getMetadataByMediaItemId();
 
         List<MediaItem> mediaItems = mediaItemRepository.findAll();
+
+        Map<String, MediaTechnicalInfo> technicalInfoByMediaItemId =
+                getTechnicalInfoByMediaItemId(mediaItems);
 
         List<FeaturedCandidate> candidates = new ArrayList<>();
 
@@ -96,10 +102,14 @@ public class MediaBarService {
                 MediaMetadata metadata =
                         metadataByMediaItemId.get(mediaItem.getId());
 
+                MediaTechnicalInfo technicalInfo =
+                        technicalInfoByMediaItemId.get(mediaItem.getId());
+
                 candidates.add(
                         new FeaturedCandidate(
                                 mediaItem,
                                 metadata,
+                                technicalInfo,
                                 thumbnailPath
                         )
                 );
@@ -266,6 +276,44 @@ public class MediaBarService {
         return metadataByMediaItemId;
     }
 
+    /**
+     * Fetches technical information only for the media items being considered.
+     *
+     * Duration is sourced exclusively from media_technical_info.
+     */
+    private Map<String, MediaTechnicalInfo> getTechnicalInfoByMediaItemId(
+            List<MediaItem> mediaItems
+    ) {
+
+        List<String> mediaItemIds = mediaItems.stream()
+                .filter(item -> item != null && item.getId() != null)
+                .map(MediaItem::getId)
+                .toList();
+
+        Map<String, MediaTechnicalInfo> result = new HashMap<>();
+
+        if (mediaItemIds.isEmpty()) {
+            return result;
+        }
+
+        for (MediaTechnicalInfo technicalInfo :
+                mediaTechnicalInfoRepository.findAllByMediaItem_IdIn(mediaItemIds)) {
+
+            if (technicalInfo == null
+                    || technicalInfo.getMediaItem() == null
+                    || technicalInfo.getMediaItem().getId() == null) {
+                continue;
+            }
+
+            result.put(
+                    technicalInfo.getMediaItem().getId(),
+                    technicalInfo
+            );
+        }
+
+        return result;
+    }
+
     private Path resolveBackdropPath(MediaItem mediaItem)
             throws IOException {
 
@@ -381,6 +429,7 @@ public class MediaBarService {
 
         MediaItem mediaItem = candidate.mediaItem();
         MediaMetadata metadata = candidate.metadata();
+        MediaTechnicalInfo technicalInfo = candidate.technicalInfo();
 
         String plot = metadata == null
                 ? null
@@ -397,6 +446,10 @@ public class MediaBarService {
                 ? null
                 : metadata.getRuntimeMinutes();
 
+        Long durationSeconds = technicalInfo == null
+                ? null
+                : technicalInfo.getDurationSeconds();
+
         return new MediaBarItemDTO(
                 mediaItem.getId(),
                 mediaItem.getCollection().getId(),
@@ -404,7 +457,7 @@ public class MediaBarService {
                 plot,
                 year,
                 runtime,
-                mediaItem.getDurationSeconds(),
+                durationSeconds,
                 "/api/v1/collections/backdrop?mediaItemId="
                         + mediaItem.getId()
         );
@@ -426,6 +479,7 @@ public class MediaBarService {
     private record FeaturedCandidate(
             MediaItem mediaItem,
             MediaMetadata metadata,
+            MediaTechnicalInfo technicalInfo,
             Path backdropPath
     ) {
     }
