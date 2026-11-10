@@ -15,6 +15,11 @@ public enum ApplicationSettingKey {
     LIBRARY_EXPAND_TECHNICAL_INFO(
             "library.expandTechnicalInfo",
             false
+    ),
+
+    HOME_SHOW_MEDIA_BAR(
+            "home.showMediaBar",
+            true
     );
 
     private final String key;

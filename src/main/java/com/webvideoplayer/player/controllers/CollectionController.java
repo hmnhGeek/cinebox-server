@@ -1,3 +1,4 @@
+
 package com.webvideoplayer.player.controllers;
 
 import com.webvideoplayer.player.dto.CatalogSyncProgress;
@@ -5,9 +6,12 @@ import com.webvideoplayer.player.dto.CreateCollectionRequest;
 import com.webvideoplayer.player.dto.VideoMetadata;
 import com.webvideoplayer.player.entities.Collection;
 import com.webvideoplayer.player.services.impl.CollectionService;
+import com.webvideoplayer.player.services.impl.MediaBarService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Page;
+import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -16,6 +20,8 @@ import org.springframework.web.bind.annotation.*;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.Duration;
 import java.util.List;
 
 @RestController
@@ -24,6 +30,7 @@ import java.util.List;
 public class CollectionController {
 
     private final CollectionService collectionService;
+    private final MediaBarService mediaBarService;
 
     /*
      * 1. Add collection
@@ -244,6 +251,30 @@ public class CollectionController {
                     .status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .build();
         }
+    }
+
+    @GetMapping("/backdrop")
+    public ResponseEntity<Resource> getBackdrop(
+            @RequestParam("mediaItemId") String mediaItemId
+    ) throws IOException {
+
+        Path backdropPath =
+                mediaBarService.getBackdropPath(mediaItemId);
+
+        String contentType = Files.probeContentType(backdropPath);
+
+        if (contentType == null) {
+            contentType = MediaType.IMAGE_JPEG_VALUE;
+        }
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(contentType))
+                .cacheControl(
+                        CacheControl.maxAge(Duration.ofDays(1))
+                                .cachePrivate()
+                )
+                .header("X-Content-Type-Options", "nosniff")
+                .body(new FileSystemResource(backdropPath));
     }
 
     @GetMapping("/sync-status")
