@@ -17,6 +17,7 @@ import com.webvideoplayer.player.entities.Studio;
 import com.webvideoplayer.player.entities.Tag;
 import com.webvideoplayer.player.repositories.CollectionRepository;
 import com.webvideoplayer.player.repositories.GenreRepository;
+import com.webvideoplayer.player.repositories.MediaItemNfoStatusRepository;
 import com.webvideoplayer.player.repositories.MediaItemPersonRepository;
 import com.webvideoplayer.player.repositories.MediaItemRepository;
 import com.webvideoplayer.player.repositories.MediaItemTagRepository;
@@ -63,6 +64,7 @@ public class MediaCatalogSyncService {
     private final MediaItemPersonRepository mediaItemPersonRepository;
     private final MediaItemTagRepository mediaItemTagRepository;
     private final PlaybackProgressRepository playbackProgressRepository;
+    private final MediaItemNfoStatusRepository mediaItemNfoStatusRepository;
 
     private final PersonRepository personRepository;
     private final GenreRepository genreRepository;
@@ -524,6 +526,10 @@ public class MediaCatalogSyncService {
 
         mediaItemPersonRepository.deleteByMediaItem_Id(itemId);
         mediaItemTagRepository.deleteByMediaItem_Id(itemId);
+
+        // Remove the NFO status record before deleting the media item.
+        // The actual NFO file and movie folder remain untouched.
+        mediaItemNfoStatusRepository.deleteByMediaItem_Id(itemId);
 
         mediaMetadataRepository.findByMediaItem_Id(itemId)
                 .ifPresent(mediaMetadataRepository::delete);

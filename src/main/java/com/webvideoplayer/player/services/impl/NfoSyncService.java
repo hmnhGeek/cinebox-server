@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -25,7 +26,6 @@ public class NfoSyncService {
 
     @Transactional
     public NfoSyncStatusDTO synchronize(String mediaItemId) {
-
         MediaItem item = getMediaItem(mediaItemId);
 
         MediaItemNfoStatus status = getOrCreateStatus(item);
@@ -56,10 +56,8 @@ public class NfoSyncService {
             status.setLastSyncedAt(Instant.now());
 
         } catch (Exception e) {
-
             status.setStatus("FAILED");
             status.setErrorMessage(limitErrorMessage(e));
-
         }
 
         return toDTO(nfoStatusRepository.save(status));
@@ -70,31 +68,41 @@ public class NfoSyncService {
 
         MediaItem item = getMediaItem(mediaItemId);
 
-        return nfoStatusRepository
-                .findByMediaItem_Id(mediaItemId)
-                .map(this::toDTO)
-                .orElseGet(() -> {
+        Optional<MediaItemNfoStatus> existingStatus =
+                nfoStatusRepository.findByMediaItem_Id(mediaItemId);
 
-                    String status;
+        try {
+            boolean nfoExists = nfoFileService.hasNfoFile(
+                    resolveMovieFolder(item)
+            );
 
-                    try {
-                        status = nfoFileService.hasNfoFile(
-                                resolveMovieFolder(item)
-                        ) ? "SYNCED" : "MISSING";
+            if (!nfoExists) {
+                return existingStatus
+                        .map(status -> toDTO(status, "MISSING"))
+                        .orElseGet(() -> NfoSyncStatusDTO.builder()
+                                .mediaItemId(mediaItemId)
+                                .status("MISSING")
+                                .build());
+            }
 
-                    } catch (IOException e) {
-                        status = "UNKNOWN";
-                    }
-
-                    return NfoSyncStatusDTO.builder()
+            return existingStatus
+                    .map(this::toDTO)
+                    .orElseGet(() -> NfoSyncStatusDTO.builder()
                             .mediaItemId(mediaItemId)
-                            .status(status)
-                            .build();
-                });
+                            .status("SYNCED")
+                            .build());
+
+        } catch (IOException e) {
+            return existingStatus
+                    .map(status -> toDTO(status, "UNKNOWN"))
+                    .orElseGet(() -> NfoSyncStatusDTO.builder()
+                            .mediaItemId(mediaItemId)
+                            .status("UNKNOWN")
+                            .build());
+        }
     }
 
     private MediaItem getMediaItem(String mediaItemId) {
-
         return mediaItemRepository.findById(mediaItemId)
                 .orElseThrow(() ->
                         new IllegalArgumentException(
@@ -104,7 +112,6 @@ public class NfoSyncService {
     }
 
     private MediaItemNfoStatus getOrCreateStatus(MediaItem item) {
-
         return nfoStatusRepository
                 .findByMediaItem_Id(item.getId())
                 .orElseGet(() -> {
@@ -119,7 +126,6 @@ public class NfoSyncService {
     }
 
     private Path resolveMovieFolder(MediaItem item) {
-
         Path collectionFolder = Path.of(
                 item.getCollection().getFolder()
         ).toAbsolutePath().normalize();
@@ -154,10 +160,16 @@ public class NfoSyncService {
     }
 
     private NfoSyncStatusDTO toDTO(MediaItemNfoStatus status) {
+        return toDTO(status, status.getStatus());
+    }
 
+    private NfoSyncStatusDTO toDTO(
+            MediaItemNfoStatus status,
+            String currentStatus
+    ) {
         return NfoSyncStatusDTO.builder()
                 .mediaItemId(status.getMediaItem().getId())
-                .status(status.getStatus())
+                .status(currentStatus)
                 .errorMessage(status.getErrorMessage())
                 .lastAttemptAt(status.getLastAttemptAt())
                 .lastSyncedAt(status.getLastSyncedAt())
