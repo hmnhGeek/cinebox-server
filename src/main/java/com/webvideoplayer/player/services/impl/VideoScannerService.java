@@ -1,4 +1,3 @@
-
 package com.webvideoplayer.player.services.impl;
 
 import com.webvideoplayer.player.dto.Actor;
@@ -76,6 +75,35 @@ public class VideoScannerService {
                     e
             );
         }
+    }
+
+    /**
+     * Checks whether a movie folder contains an NFO file.
+     *
+     * This is intentionally separate from getVideoMetadata() so collection
+     * synchronization can avoid parsing NFO files for already indexed movies.
+     */
+    public boolean hasNfoFile(
+            Path collectionFolder,
+            Path videoFolderPath
+    ) throws IOException {
+
+        if (!Files.isDirectory(collectionFolder)) {
+            throw new IOException(
+                    "Collection folder does not exist: " + collectionFolder
+            );
+        }
+
+        Path resolvedVideoFolder = collectionFolder.resolve(videoFolderPath);
+
+        if (!Files.isDirectory(resolvedVideoFolder)
+                || !Files.isReadable(resolvedVideoFolder)) {
+            throw new IOException(
+                    "Video folder is unavailable: " + resolvedVideoFolder
+            );
+        }
+
+        return findNfoFile(resolvedVideoFolder) != null;
     }
 
     private Optional<Path> findVideoFile(Path videoFolder)
@@ -286,7 +314,9 @@ public class VideoScannerService {
                      Files.newDirectoryStream(folder, "*.nfo")) {
 
             for (Path file : stream) {
-                return file;
+                if (Files.isRegularFile(file)) {
+                    return file;
+                }
             }
 
         } catch (IOException e) {

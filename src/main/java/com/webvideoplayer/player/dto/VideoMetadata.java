@@ -1,12 +1,14 @@
 package com.webvideoplayer.player.dto;
 
-import lombok.Builder;
-import lombok.Data;
+import lombok.*;
 
 import java.util.List;
 
-@Data
+@Getter
+@Setter
 @Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class VideoMetadata {
     private String id;
     private String collectionId;

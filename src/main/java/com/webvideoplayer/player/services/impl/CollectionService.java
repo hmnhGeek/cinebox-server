@@ -9,6 +9,7 @@ import com.webvideoplayer.player.entities.MediaMetadata;
 import com.webvideoplayer.player.entities.MediaTechnicalInfo;
 import com.webvideoplayer.player.enums.CollectionSyncStatus;
 import com.webvideoplayer.player.repositories.CollectionRepository;
+import com.webvideoplayer.player.repositories.MediaItemNfoStatusRepository;
 import com.webvideoplayer.player.repositories.MediaItemPersonRepository;
 import com.webvideoplayer.player.repositories.MediaItemRepository;
 import com.webvideoplayer.player.repositories.MediaItemTagRepository;
@@ -59,6 +60,7 @@ public class CollectionService {
     private final MediaItemTagRepository mediaItemTagRepository;
     private final MediaTechnicalInfoRepository mediaTechnicalInfoRepository;
     private final PlaybackProgressRepository playbackProgressRepository;
+    private final MediaItemNfoStatusRepository mediaItemNfoStatusRepository;
 
     public Collection addCollection(
             String title,
@@ -130,10 +132,13 @@ public class CollectionService {
             String itemId = item.getId();
 
             playbackProgressRepository.deleteByMediaItem_Id(itemId);
-
             mediaItemPersonRepository.deleteByMediaItem_Id(itemId);
             mediaItemTagRepository.deleteByMediaItem_Id(itemId);
             mediaTechnicalInfoRepository.deleteByMediaItem_Id(itemId);
+
+            // Delete the NFO status record before deleting its media item.
+            // The actual NFO file and movie folder are not touched.
+            mediaItemNfoStatusRepository.deleteByMediaItem_Id(itemId);
 
             mediaMetadataRepository.findByMediaItem_Id(itemId)
                     .ifPresent(mediaMetadataRepository::delete);
@@ -308,7 +313,6 @@ public class CollectionService {
 
         return items.stream()
                 .map(item -> {
-
                     Path collectionPath = Paths.get(
                             item.getCollection().getFolder()
                     ).toAbsolutePath().normalize();
@@ -488,7 +492,6 @@ public class CollectionService {
                         : (int) Math.round(
                         item.getDurationSeconds() / 60.0
                 ))
-
                 // Technical media information
                 .resolution(technicalInfo == null
                         ? null : technicalInfo.getResolutionLabel())
@@ -499,7 +502,6 @@ public class CollectionService {
                 .durationSeconds(technicalInfo == null
                         ? null : technicalInfo.getDurationSeconds())
                 .fileSizeBytes(item.getFileSizeBytes())
-
                 .studio(studios.isEmpty() ? null : studios.getFirst())
                 .studios(studios)
                 .directors(directors)
@@ -575,7 +577,6 @@ public class CollectionService {
      */
     @Transactional(readOnly = true)
     public List<String> getAvailableCollectionIds() {
-
         return getAllCollections()
                 .stream()
                 .map(Collection::getId)
@@ -594,7 +595,6 @@ public class CollectionService {
     }
 
     public void synchroniseCollection(String collectionId) {
-
         mediaCatalogSyncAsyncService.synchronizeCollectionAsync(
                 collectionId
         );
