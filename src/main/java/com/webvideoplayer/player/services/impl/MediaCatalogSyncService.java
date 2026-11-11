@@ -148,7 +148,17 @@ public class MediaCatalogSyncService {
 
                 MediaItem item = existingByPath.get(relativePath);
 
-                if (item == null) {
+                /*
+                 * Metadata import is deliberately limited to newly
+                 * discovered movies.
+                 *
+                 * Existing SQLite metadata is authoritative during an
+                 * ordinary collection sync. Changes to an existing NFO
+                 * must be imported through an explicit re-import action.
+                 */
+                boolean newItem = item == null;
+
+                if (newItem) {
                     item = new MediaItem();
                     item.setCollection(collection);
                     item.setRelativePath(relativePath);
@@ -160,24 +170,44 @@ public class MediaCatalogSyncService {
                 long fileSize = Files.size(videoFile);
 
                 boolean videoChanged =
-                        item.getId() == null
+                        newItem
                                 || item.getLastModifiedAt() == null
                                 || item.getFileSizeBytes() == null
                                 || !item.getLastModifiedAt().equals(modifiedAt)
                                 || item.getFileSizeBytes() != fileSize;
 
-                VideoMetadata metadata =
-                        videoScannerService.getVideoMetadata(
-                                collectionPath,
-                                movieFolder
-                        );
+                VideoMetadata metadata = null;
 
-                // Associate the scanned metadata with its owning collection.
-                if (metadata != null) {
-                    metadata.setCollectionId(collection.getId());
+                /*
+                 * Do not parse NFO files for existing movies.
+                 *
+                 * For a new movie, import metadata only when an NFO file
+                 * is present. A movie without an NFO is still indexed.
+                 */
+                if (newItem
+                        && videoScannerService.hasNfoFile(
+                        collectionPath,
+                        movieFolder
+                )) {
+
+                    metadata = videoScannerService.getVideoMetadata(
+                            collectionPath,
+                            movieFolder
+                    );
+
+                    if (metadata != null) {
+                        metadata.setCollectionId(collection.getId());
+                    }
                 }
 
-                String title = resolveTitle(metadata, movieFolder);
+                String title;
+
+                if (newItem) {
+                    title = resolveTitle(metadata, movieFolder);
+                } else {
+                    // Never replace an existing SQLite title from NFO.
+                    title = item.getTitle();
+                }
 
                 item.setTitle(title);
                 item.setFileSizeBytes(fileSize);
@@ -205,7 +235,13 @@ public class MediaCatalogSyncService {
 
                 item = mediaItemRepository.save(item);
 
-                synchronizeMetadata(item, metadata);
+                /*
+                 * This is the only automatic NFO-to-SQLite import path.
+                 * Existing movies are intentionally excluded.
+                 */
+                if (newItem && metadata != null) {
+                    synchronizeMetadata(item, metadata);
+                }
 
             } catch (IOException e) {
                 if (Thread.currentThread().isInterrupted()) {
@@ -316,7 +352,7 @@ public class MediaCatalogSyncService {
 
         mediaMetadataRepository.save(metadata);
 
-        // Rebuild people relationships from the current metadata.
+        // Rebuild people relationships from the imported metadata.
         mediaItemPersonRepository.deleteByMediaItem_Id(item.getId());
 
         List<MediaItemPerson> people = new ArrayList<>();
