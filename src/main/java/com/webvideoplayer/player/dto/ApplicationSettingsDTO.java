@@ -5,7 +5,8 @@ import java.util.Map;
 public record ApplicationSettingsDTO(
         PlaybackSettings playback,
         DiscoverySettings discovery,
-        LibrarySettings library
+        LibrarySettings library,
+        HomeSettings home
 ) {
 
     public record PlaybackSettings(
@@ -28,6 +29,11 @@ public record ApplicationSettingsDTO(
     ) {
     }
 
+    public record HomeSettings(
+            boolean showMediaBar
+    ) {
+    }
+
     public static ApplicationSettingsDTO from(
             Map<String, Boolean> settings
     ) {
@@ -37,11 +43,16 @@ public record ApplicationSettingsDTO(
                 ),
                 new DiscoverySettings(
                         new ActorSettings(
-                                settings.get("discovery.actors.showOnlyWithProfile")
+                                settings.get(
+                                        "discovery.actors.showOnlyWithProfile"
+                                )
                         )
                 ),
                 new LibrarySettings(
                         settings.get("library.expandTechnicalInfo")
+                ),
+                new HomeSettings(
+                        settings.get("home.showMediaBar")
                 )
         );
     }
